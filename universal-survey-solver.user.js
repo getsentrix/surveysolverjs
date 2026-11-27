@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.12
+// @version      1.1.13
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.12';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.13';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2502,7 +2502,7 @@
         const combined = parts.join(' ').trim();
         const isMarkedInvalid = el.getAttribute('aria-invalid') === 'true' ||
             /\b(error|invalid)\b/i.test(typeof el.className === 'string' ? el.className : '');
-        if (combined && (isMarkedInvalid || /\b(maximum|minimum|at\s+least|allowed|characters?|chars?|words?|required|invalid|too\s+(?:long|short))\b/i.test(combined))) {
+        if (combined && (isMarkedInvalid || /\b(maximum|minimum|at\s+least|at\s+most|no\s+more\s+than|up\s+to|exact(?:ly)?|box(?:es)?|you\s+checked|allowed|characters?|chars?|words?|required|invalid|too\s+(?:long|short))\b/i.test(combined))) {
             return combined;
         }
         return isMarkedInvalid ? 'Field marked invalid' : '';
@@ -2517,10 +2517,13 @@
             return b.rows.every(r => (r.input.value || r.input.textContent || '').trim() !== '');
         }
         if (b.type === 'matrix_grid') {
-            return b.rows.every(r => r.choices.some(c => (c.input && c.input.checked) || isChoiceMarkedSelected(c, r.rowHeader || b.prompt)));
+            if (!b.rows.every(r => r.choices.some(c => (c.input && c.input.checked) || isChoiceMarkedSelected(c, r.rowHeader || b.prompt)))) return false;
+            return !(getFieldValidationErrorText(b.element) && (validationRetryCounts.get(b.element) || 0) < 1);
         }
         if (b.type === 'choices') {
-            return b.choices.some(c => (c.input && c.input.checked) || isChoiceMarkedSelected(c, b.prompt));
+            if (!b.choices.some(c => (c.input && c.input.checked) || isChoiceMarkedSelected(c, b.prompt))) return false;
+            const errProbe = b.choices[0]?.input || b.element;
+            return !(getFieldValidationErrorText(errProbe) && (validationRetryCounts.get(b.element) || 0) < 1);
         }
         if (b.type === 'select') {
             return b.element.selectedIndex > 0 && b.element.value !== '' && !/^(select|choose|--)/i.test(b.element.options[b.element.selectedIndex]?.text);
@@ -3793,7 +3796,16 @@ RULES:
     async function solveSingleBlock(block, sharedConcept = '', rawSelection = '', roots = null) {
         if (abortRequested) return;
         const cleanShared = sharedConcept && !(block.prompt || '').includes(sharedConcept) ? sharedConcept : '';
-        const fullPrompt = [cleanShared, block.prompt || rawSelection || 'Answer the prompt.']
+        const errProbe = block.choices?.[0]?.input || block.element;
+        const validationErr = errProbe ? getFieldValidationErrorText(errProbe) : '';
+        if (validationErr && block.element) {
+            validationRetryCounts.set(block.element, (validationRetryCounts.get(block.element) || 0) + 1);
+        }
+        const fullPrompt = [
+            cleanShared,
+            block.prompt || rawSelection || 'Answer the prompt.',
+            validationErr ? `Validation Error to Fix: ${validationErr}` : ''
+        ]
             .filter(Boolean)
             .join('\n\n');
 
@@ -4002,7 +4014,7 @@ RULES:
                 }
 
                 if (!item.isMulti) valid = [valid[0]];
-                else valid = sanitizeMultiSelectIndices(valid, item.choices);
+                else valid = sanitizeMultiSelectIndices(valid, item.choices, extractMaxSelectionCap(item.prompt));
 
                 if (item.block.type === 'select') {
                     await applySelectChoice(item.block.element, item.choices[valid[0]]);
@@ -5127,7 +5139,17 @@ RULES:
         target.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: char }));
     }
 
-    function sanitizeMultiSelectIndices(selectedIndices, choices) {
+    function extractMaxSelectionCap(text) {
+        if (!text) return null;
+        const wordMap = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+        const m = String(text).match(/(?:up\s+to|at\s+most|no\s+more\s+than|max(?:imum)?(?:\s+of)?|select\s+only|choose\s+only|pick\s+only|top)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i);
+        if (!m) return null;
+        const raw = m[1].toLowerCase();
+        const n = /^\d+$/.test(raw) ? parseInt(raw, 10) : (wordMap[raw] || null);
+        return (n && n > 0) ? n : null;
+    }
+
+    function sanitizeMultiSelectIndices(selectedIndices, choices, maxCap = null) {
         if (selectedIndices.length <= 1) return selectedIndices;
 
         const regularIndices = [];
@@ -5145,9 +5167,11 @@ RULES:
             }
         }
 
-        if (regularIndices.length > 0) return regularIndices;
-        if (exclusiveIndices.length > 0) return [exclusiveIndices[0]];
-        return selectedIndices;
+        let res = regularIndices.length > 0
+            ? regularIndices
+            : (exclusiveIndices.length > 0 ? [exclusiveIndices[0]] : selectedIndices);
+        if (maxCap && res.length > maxCap) res = res.slice(0, maxCap);
+        return res;
     }
 
     function detectTrapDirective(prompt, choices) {
@@ -5183,14 +5207,28 @@ RULES:
                 return;
             }
 
+            const isCheckboxGroup = choices.some(c => c.input && c.input.type === 'checkbox');
+            const selectedSet = new Set(selectedIndices);
+            if (isCheckboxGroup) {
+                for (let i = 0; i < choices.length; i++) {
+                    if (abortRequested) return;
+                    if (choices[i]?.input?.checked && !selectedSet.has(i)) {
+                        await triggerNativeClick(choices[i].target, choices[i].input, choices[i].label);
+                        await abortableSleep(pickRangeDelay(SPD.betweenClicks));
+                    }
+                }
+            }
+
             const chosenTexts = [];
             for (const idx of selectedIndices) {
                 if (abortRequested) return;
                 if (choices[idx]) {
                     chosenTexts.push(choices[idx].text);
-                    await triggerNativeClick(choices[idx].target, choices[idx].input, choices[idx].label);
+                    if (!isCheckboxGroup || !choices[idx].input?.checked) {
+                        await triggerNativeClick(choices[idx].target, choices[idx].input, choices[idx].label);
+                        await abortableSleep(pickRangeDelay(SPD.betweenClicks));
+                    }
                     stampCustomChoiceSelected(choices[idx], stampPrompt || prompt);
-                    await abortableSleep(pickRangeDelay(SPD.betweenClicks));
                     await handleSpecifyInputForChoice(choices[idx], prompt);
                 }
             }
@@ -5247,7 +5285,7 @@ RULES:
                     const parsed = parseModelJSON(rawText);
                     const rawIndices = Array.isArray(parsed.selected) ? parsed.selected : [parseInt(parsed.selected, 10)];
                     const validIndices = rawIndices.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n >= 0 && n < choices.length);
-                    const sanitized = sanitizeMultiSelectIndices(validIndices, choices);
+                    const sanitized = sanitizeMultiSelectIndices(validIndices, choices, extractMaxSelectionCap(prompt));
                     resolve(sanitized);
                 })
                 .catch(reject);
