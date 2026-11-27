@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.17
+// @version      1.1.18
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -43,7 +43,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.17';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.18';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -215,32 +215,21 @@
                     });
 
                     if (hasUpdate) {
-                        if (typeof GM_registerMenuCommand === 'function' && registeredUpdateMenuVersion !== remoteVersion) {
-                            registeredUpdateMenuVersion = remoteVersion;
-                            try {
-                                GM_registerMenuCommand(`⬆️ Update Available (v${remoteVersion})`, () => openExternalTab(GREASYFORK_USERJS_URL));
-                            } catch (e) {}
-                        }
-                        if (hudElement && !isProcessing && !autoFarmActive) {
-                            updateHUD(`Update v${remoteVersion} ready`, 'info', 8000);
-                        }
-                        if (manual && !isOnWelcomePage()) {
-                            let confirmed = false;
-                            try {
-                                confirmed = window.confirm(`Universal Survey Solver v${remoteVersion} is available (you have v${SCRIPT_VERSION}). Open Greasy Fork installer now?`);
-                            } catch (e) {
-                                confirmed = false;
-                            }
-                            if (confirmed) {
-                                openExternalTab(GREASYFORK_USERJS_URL);
-                            }
-                        }
+                        emitUpdateStatus({
+                            checking: false,
+                            currentVersion: SCRIPT_VERSION,
+                            remoteVersion,
+                            hasUpdate: true,
+                            installUrl: GREASYFORK_USERJS_URL
+                        });
                     } else if (manual) {
-                        if (hudElement && !isProcessing && !autoFarmActive) {
-                            updateHUD(`Up to date (v${SCRIPT_VERSION})`, 'active', 3000);
-                        } else if (!isOnWelcomePage()) {
-                            window.alert(`You are up to date (v${SCRIPT_VERSION}).`);
-                        }
+                        emitUpdateStatus({
+                            checking: false,
+                            currentVersion: SCRIPT_VERSION,
+                            remoteVersion,
+                            hasUpdate: false,
+                            installUrl: GREASYFORK_USERJS_URL
+                        });
                     }
                 },
                 onerror: () => {
@@ -357,30 +346,8 @@
     function registerUserscriptMenuCommands() {
         if (typeof GM_registerMenuCommand !== 'function') return;
         try {
-            GM_registerMenuCommand('🔑 Set Gemini API Key', () => {
-                const current = String(gmGet(GM_KEY_API, '') || '').trim();
-                const input = window.prompt(
-                    'Paste your Google AI Studio Gemini API key below (saved safely across Greasy Fork updates).\nLeave blank to revert to the key in the script file.',
-                    current
-                );
-                if (input === null) return;
-                const cleaned = input.trim();
-                gmSet(GM_KEY_API, cleaned);
-                if (hudElement) {
-                    updateHUD(cleaned ? 'API key saved' : 'Using script key', 'active', 2500);
-                }
-            });
-            GM_registerMenuCommand('👤 Persona Profile (Setup)', () => {
-                openExternalTab(isConfiguredWelcomeUrl(WELCOME_PAGE_URL) ? `${WELCOME_PAGE_URL}#step-profile` : GREASYFORK_SCRIPT_URL);
-            });
-            GM_registerMenuCommand('📖 Open Setup & Instructions', () => {
+            GM_registerMenuCommand('⚙️ Open Dashboard', () => {
                 openExternalTab(isConfiguredWelcomeUrl(WELCOME_PAGE_URL) ? WELCOME_PAGE_URL : GREASYFORK_SCRIPT_URL);
-            });
-            GM_registerMenuCommand('🔄 Check for Updates (Greasy Fork)', () => {
-                checkForScriptUpdate(true);
-            });
-            GM_registerMenuCommand('📋 Download Self-Heal Logs (.txt)', () => {
-                exportSelfHealLogFile(true);
             });
         } catch (e) {}
     }
@@ -403,6 +370,7 @@
             const cachedRemote = String(gmGet(GM_KEY_LAST_REMOTE_VERSION, '') || '').trim();
             const cachedHasUpdate = cachedRemote ? compareSemver(cachedRemote, SCRIPT_VERSION) > 0 : false;
             const profile = getSavedPersonaProfile();
+            const selfHealLogs = readSelfHealLogs();
             window.dispatchEvent(new CustomEvent('gt:bridge-status', {
                 detail: {
                     installed: true,
@@ -412,6 +380,8 @@
                     profile,
                     compressedProfile: compressPersonaProfile(profile),
                     trueAuto: isTrueAutoEnabled(),
+                    selfHealLogCount: selfHealLogs.length,
+                    selfHealLogText: selfHealLogs.length ? formatSelfHealLogsText(selfHealLogs) : '',
                     greasyforkUrl: GREASYFORK_SCRIPT_URL,
                     installUrl: GREASYFORK_USERJS_URL,
                     remoteVersion: cachedRemote || SCRIPT_VERSION,
@@ -474,6 +444,10 @@
         window.addEventListener('gt:check-update', () => {
             if (!isOnWelcomePage()) return;
             checkForScriptUpdate(true);
+        });
+        window.addEventListener('gt:download-self-heal-logs', () => {
+            if (!isOnWelcomePage()) return;
+            exportSelfHealLogFile(false);
         });
 
         publishStatus();
@@ -1420,7 +1394,6 @@
         }
 
         initHUD();
-        setTimeout(() => checkForScriptUpdate(false), 3500);
         window.addEventListener('message', (e) => {
             if (e?.data?.__gtSurveyFrameActive && hudHost && !isProcessing && !autoFarmActive) {
                 try {

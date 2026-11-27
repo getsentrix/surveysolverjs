@@ -1823,6 +1823,17 @@
         <span class="switch-knob"></span>
       </button>
     </div>
+
+    <div class="toggle-card" style="margin-top: 14px;">
+      <div class="optional-summary-left">
+        <div class="optional-title-line">
+          <h2 class="optional-title">Self-Heal Logs</h2>
+          <span id="selfHealCountBadge" class="soft-badge is-neutral">0</span>
+        </div>
+        <span id="selfHealNote" class="optional-sub">Download prompts &amp; AI answers saved when Auto-Farm self-heals a stuck or unknown page.</span>
+      </div>
+      <button type="button" id="downloadSelfHealLogsBtn" class="btn btn-sm btn-outline">Download Logs</button>
+    </div>
   </main>
 
   <footer class="footer">
@@ -1860,6 +1871,11 @@
       const trueAutoToggle = document.getElementById('trueAutoToggle');
       const trueAutoStateBadge = document.getElementById('trueAutoStateBadge');
       const trueAutoNote = document.getElementById('trueAutoNote');
+      const selfHealCountBadge = document.getElementById('selfHealCountBadge');
+      const selfHealNote = document.getElementById('selfHealNote');
+      const downloadSelfHealLogsBtn = document.getElementById('downloadSelfHealLogsBtn');
+      let cachedSelfHealLogText = '';
+      let cachedSelfHealLogCount = 0;
 
       const profileDetails = document.getElementById('step-profile');
       const profileSummaryBadge = document.getElementById('profileSummaryBadge');
@@ -2231,7 +2247,39 @@
         if (typeof detail.trueAuto === 'boolean') {
           renderTrueAutoUI(detail.trueAuto, 'synced');
         }
+        if (typeof detail.selfHealLogCount === 'number') {
+          cachedSelfHealLogCount = detail.selfHealLogCount;
+          cachedSelfHealLogText = String(detail.selfHealLogText || '');
+          selfHealCountBadge.textContent = String(cachedSelfHealLogCount);
+          selfHealCountBadge.classList.toggle('is-neutral', cachedSelfHealLogCount === 0);
+        }
         updateProgress();
+      });
+
+      downloadSelfHealLogsBtn.addEventListener('click', () => {
+        if (!bridgeConnected) {
+          selfHealNote.textContent = 'Userscript bridge not connected — install or enable the script first.';
+          return;
+        }
+        if (cachedSelfHealLogCount === 0 || !cachedSelfHealLogText) {
+          selfHealNote.textContent = 'No self-heal logs recorded yet.';
+          return;
+        }
+        try {
+          const blob = new Blob([cachedSelfHealLogText], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'survey-solver-selfheal-log.txt';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 4000);
+          downloadSelfHealLogsBtn.textContent = 'Downloaded ✓';
+          setTimeout(() => { downloadSelfHealLogsBtn.textContent = 'Download Logs'; }, 1800);
+        } catch (err) {
+          window.dispatchEvent(new CustomEvent('gt:download-self-heal-logs'));
+        }
       });
 
       window.addEventListener('gt:true-auto-saved', (e) => {
