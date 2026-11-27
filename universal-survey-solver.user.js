@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.5
+// @version      1.1.6
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.5';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.6';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2145,7 +2145,8 @@
                 btn.alt,
                 hostTitle
             ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-            const attrSig = `${btn.id || ''} ${btn.name || ''} ${btn.value || ''} ${selfSrcName} ${btn.getAttribute('aria-label') || ''} ${btn.title || ''} ${btn.getAttribute('data-test-id') || ''} ${btn.getAttribute('data-testid') || ''} ${btn.getAttribute('data-action') || ''} ${btn.getAttribute('data-direction') || ''} ${btn.getAttribute('data-nav') || ''} ${btn.getAttribute('jsname') || ''} ${btn.getAttribute('onclick') || ''} ${typeof btn.className === 'string' ? btn.className : ''} ${childMeta} ${hostTestId} ${hostClass}`;
+            const onclickAttr = (btn.getAttribute('onclick') || '').replace(/\breturn\b/gi, ' ');
+            const attrSig = `${btn.id || ''} ${btn.name || ''} ${btn.value || ''} ${selfSrcName} ${btn.getAttribute('aria-label') || ''} ${btn.title || ''} ${btn.getAttribute('data-test-id') || ''} ${btn.getAttribute('data-testid') || ''} ${btn.getAttribute('data-action') || ''} ${btn.getAttribute('data-direction') || ''} ${btn.getAttribute('data-nav') || ''} ${btn.getAttribute('jsname') || ''} ${onclickAttr} ${typeof btn.className === 'string' ? btn.className : ''} ${childMeta} ${hostTestId} ${hostClass}`;
             const splitAttrSig = splitAttrWords(attrSig);
 
             if (
