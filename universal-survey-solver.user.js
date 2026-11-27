@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.14
+// @version      1.1.15
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.14';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.15';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -634,6 +634,7 @@
     }
 
     function heartbeatActiveTabLock(kind = 'survey') {
+        if (document.hidden) return;
         const lock = readActiveTabLock();
         if (!lock || lock.releasedAt || lock.tabId === TAB_ID || (Date.now() - (lock.ts || 0)) >= ACTIVE_LOCK_TTL_MS) {
             claimActiveTabLock(kind);
@@ -850,8 +851,8 @@
             return false;
         }
 
-        // Never resume in a background tab while another tab owns the active lock
-        if (document.hidden && isOtherTabLockActive()) {
+        // Never resume in a background/hidden tab
+        if (document.hidden) {
             return false;
         }
 
@@ -913,7 +914,14 @@
         }
     });
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden && autoFarmActive && !abortRequested) stampAutoFarmHandoff(isOfferWallPage());
+        if (document.hidden && autoFarmActive && !abortRequested) {
+            const onWall = isOfferWallPage();
+            stampAutoFarmHandoff(onWall);
+            if (!onWall) {
+                releaseActiveTabLock(false);
+                pauseAsOtherTab('Paused: tab in background');
+            }
+        }
     });
 
     function readReloadStuckState() {
@@ -1591,9 +1599,14 @@
             }
         }
 
-        // 3. Text-only CAPTCHA gate check ONLY when there are no normal survey questions on the page
+        // 3. Image/text CAPTCHA gates (detected even when the CAPTCHA renders its own text input)
+        const bodyText = (document.body?.innerText || '').slice(0, 2500);
+        if (/\b(?:please\s+)?(?:enter|type)\s+(?:the\s+)?(?:text|characters?|letters?|numbers?|words?|code)\s+(?:that\s+)?(?:you\s+see|shown|displayed)?\s*(?:in\s+the\s+image|above|below)/i.test(bodyText)) {
+            return 'overlay';
+        }
+
+        // 4. Text-only CAPTCHA gate check ONLY when there are no normal survey questions on the page
         if (!hasSurveyQuestions) {
-            const bodyText = (document.body?.innerText || '').slice(0, 2500);
             if (/\b(i['’]?m not a robot|verify you are human|complete the captcha|prove you are human|type the characters you see|please check the box below to proceed)\b/i.test(bodyText)) {
                 return 'widget';
             }
@@ -1769,10 +1782,15 @@
                     pauseAsOtherTab();
                     return;
                 }
-                if (onOfferWallNow && document.hidden) {
-                    updateHUD('Standby: survey tab open', 'info');
-                    await abortableSleep(1500);
-                    continue;
+                if (document.hidden) {
+                    if (onOfferWallNow && isTrueAutoEnabled()) {
+                        updateHUD('Standby: survey tab open', 'info');
+                        await abortableSleep(1500);
+                        continue;
+                    }
+                    releaseActiveTabLock(false);
+                    pauseAsOtherTab('Paused: tab in background');
+                    return;
                 }
                 heartbeatActiveTabLock(onOfferWallNow ? 'offerwall' : 'survey');
 
