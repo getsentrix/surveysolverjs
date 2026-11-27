@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.15
+// @version      1.1.16
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.15';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.16';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2227,14 +2227,14 @@
             '#btn_continue, #NextButton, #cm-NextButton, #movenextbtn, #movesubmitbtn, #sg_NextButton, #sg_SubmitButton, input[name="sGizmoNextButton"], input[name="sGizmoSubmitButton"], .sg-next-button, .sg-submit-button, .cf-navigation-next, .cf-navigation__button, .cm-navigation-next-button, #submitQuestion, #next, .NextButton, [data-test-id="ps-qualification-next-button"] button, [data-test-id="ps-start-survey-btn"] button, [data-test-id="ps-common-actions-button"], [data-testid="confirm-selection"], [data-testid="submit-text"], [data-testid*="confirm" i][tabindex="0"], [data-testid*="next" i][tabindex="0"], [data-testid*="continue" i][tabindex="0"], [data-testid*="submit" i][tabindex="0"], input[type="submit"], button[type="submit"], input[type="button"], input[type="image"], button, a[role="button"], [role="button"], a.btn, a[id*="submit" i], a[id*="next" i], a[id*="continue" i], a[class*="next" i], a[class*="continue" i]'
         );
 
-        const knownForwardIds = /^(next|continue|submit|btn_continue|NextButton|cm-NextButton|movenextbtn|movesubmitbtn|sg_NextButton|sg_SubmitButton|sGizmoNextButton|sGizmoSubmitButton|submitQuestion|submitButton|submitBtn|submit_btn|btnSubmit|next_button|forwardbutton|btnNext|nextBtn|next-button|continue-button|submit-button|continue_btn|next_btn|ps-qualification-next-button|ps-start-survey-btn|ps-common-actions-button|confirm-selection|submit-text)$/i;
+        const knownForwardIds = /^(next\d*|continue|submit|btn_continue|NextButton|cm-NextButton|movenextbtn|movesubmitbtn|sg_NextButton|sg_SubmitButton|sGizmoNextButton|sGizmoSubmitButton|submitQuestion|submitButton|submitBtn|submit_btn|btnSubmit|next_button|forwardbutton|btnNext|nextBtn|next-button|continue-button|submit-button|continue_btn|next_btn|ps-qualification-next-button|ps-start-survey-btn|ps-common-actions-button|confirm-selection|submit-text)$/i;
         const nextWordRx = /^(next|continue|submit|proceed|forward|participate|take\s*survey|go\s*to\s*survey|launch\s*survey|enter\s*survey|next\s*page|next\s*question|save\s*(?:&|and)\s*continue|start|start\s*survey|begin|get\s*started|let'?s\s*go|agree\s*(?:&|and)\s*continue|accept\s*(?:&|and)\s*continue|i\s*agree|i\s*accept|finish|complete|done|confirm|confirm\s*(?:my\s*)?selections?|send)$/i;
         const forwardArrowOnlyRx = /^(?:[>>»›→➜➔▶▸►➡❯❱⇒⇨⟶⟹]+|->+)$/;
         const backArrowOnlyRx = /^(?:[<<«‹←◀◂◄⬅❮❰⇐⇦↩↶⟵⟸]+|<-+)$/;
         const rejectTextRx = /\b(back|goback|go\s*back|step\s*back|previous|prev|return|prior|earlier|undo|cancel|exit|logout|log\s*out|close|disagree|decline|no\s*thanks|skip\s*survey|skip\s*question|can'?t\s*answer|quit|reset|clear|privacy|terms|cookie|help|support|contact\s*(?:form\s*)?owner|edit\s*(?:this\s*)?form|arrow_back(?:_ios(?:_new)?)?|navigate_before|chevron_left|keyboard_arrow_left|arrow_left|west)\b/i;
         const rejectAttrWordRx = /\b(back|goback|go\s*back|prev|previous|cancel|exit|close|logout|reset|clear|undo|return|skip\s*question|arrow\s*left|chevron\s*left|angle\s*left|caret\s*left|icon\s*left|p\s*btn\s*icon\s*left)\b/i;
         const rejectAttrCompactRx = /(?:^|[\s_-])(?:moveprev(?:btn)?|moveback(?:btn)?|goback|backbtn|prevbtn|previousbtn|btnback|btnprev|GeGHKb|X5DuWc|CHu7sb|FqYDPb)(?:$|[\s_-])/i;
-        const forwardAttrRx = /(?:^|[\s_-])(btn_continue|continue|nextbutton|next[-_]?button|next[-_]?btn|continue[-_]?btn|submit[-_]?btn|submitquestion|submitbutton|start[-_]?survey[-_]?btn|cf[-_]?navigation[-_]?next|cm[-_]?navigation[-_]?next[-_]?button|cm[-_]?nextbutton|movenext|forward|next)(?:$|[\s_-])/i;
+        const forwardAttrRx = /(?:^|[\s_-])(btn_continue|continue|nextbutton|next[-_]?button|next[-_]?btn|continue[-_]?btn|submit[-_]?btn|submitquestion|submitbutton|start[-_]?survey[-_]?btn|cf[-_]?navigation[-_]?next|cm[-_]?navigation[-_]?next[-_]?button|cm[-_]?nextbutton|movenext|nextpage|chevron[-_]?right|arrow[-_]?right|forward|next\d*)(?:$|[\s_-])/i;
         const splitAttrWords = (s) => String(s || '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ');
         const isLeftPointingSvg = (btn) => {
             if (btn.querySelector('.p-btn-icon--left, [class*="arrow-left" i], [class*="chevron-left" i], [class*="angle-left" i], [class*="caret-left" i], [data-icon*="left" i], [data-icon*="back" i]')) return true;
@@ -2335,7 +2335,7 @@
             let score = 0;
             const isKnownId = knownForwardIds.test(btn.id || '') || knownForwardIds.test(btn.getAttribute('name') || '') || knownForwardIds.test(btn.getAttribute('data-test-id') || '') || knownForwardIds.test(btn.getAttribute('data-testid') || '') || knownForwardIds.test(hostTestId) || btn.classList.contains('sg-next-button') || btn.classList.contains('sg-submit-button');
             const isExactWord = nextWordRx.test(normalized);
-            const isArrowOnly = !normalized && (forwardArrowOnlyRx.test(rawLabel) || (!rawLabel && !!btn.querySelector('.p-btn-icon--right svg, svg')));
+            const isArrowOnly = !normalized && (forwardArrowOnlyRx.test(rawLabel) || (!rawLabel && !!btn.querySelector('.p-btn-icon--right svg, svg, [class*="chevron-right" i], [class*="arrow-right" i]')));
             const isForwardAttr = forwardAttrRx.test(attrSig) || !!btn.querySelector('.p-btn-icon--right');
             const isSubmit = (tag === 'INPUT' || tag === 'BUTTON') && (btnType === 'submit' || (btnType === 'image' && (isKnownId || isExactWord || isForwardAttr)));
 
