@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.1
+// @version      1.1.2
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.1';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.2';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -3007,13 +3007,25 @@
         if (checkboxes.length >= 2) {
             const cbContainerMap = new Map();
             for (const cb of checkboxes) {
-                let parent = cb.parentElement;
-                while (parent && parent !== document.body) {
-                    const count = parent.querySelectorAll('input[type="checkbox"]').length;
-                    if (count >= 2 && count <= 100) break;
-                    parent = parent.parentElement;
+                const isMatrixRow = Boolean(extractMatrixRowPrompt(cb));
+                let container = !isMatrixRow
+                    ? cb.closest('.QuestionOuter, .QuestionBody, .cf-question, .cm-question, fieldset, [role="group"]')
+                    : null;
+                if (!container) {
+                    let parent = cb.parentElement;
+                    while (parent && parent !== document.body) {
+                        const count = parent.querySelectorAll('input[type="checkbox"]').length;
+                        if (count >= 2 && count <= 100) {
+                            if (!isMatrixRow && parent.matches('tr, .row, [class*="row" i]') && parent.closest('table, .ChoiceStructure, [class*="grid" i], [class*="choice" i]')) {
+                                parent = parent.parentElement;
+                                continue;
+                            }
+                            break;
+                        }
+                        parent = parent.parentElement;
+                    }
+                    container = parent || document.body;
                 }
-                const container = parent || document.body;
                 if (!cbContainerMap.has(container)) cbContainerMap.set(container, []);
                 cbContainerMap.get(container).push(cb);
             }
