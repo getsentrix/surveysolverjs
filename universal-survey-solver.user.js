@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.13
+// @version      1.1.14
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.13';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.14';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -5213,7 +5213,7 @@ RULES:
                 for (let i = 0; i < choices.length; i++) {
                     if (abortRequested) return;
                     if (choices[i]?.input?.checked && !selectedSet.has(i)) {
-                        await triggerNativeClick(choices[i].target, choices[i].input, choices[i].label);
+                        await triggerNativeClick(choices[i].target, choices[i].input, choices[i].label, false);
                         await abortableSleep(pickRangeDelay(SPD.betweenClicks));
                     }
                 }
@@ -5327,7 +5327,7 @@ RULES:
         await abortableSleep(randomBetween(36, 86));
     }
 
-    async function triggerNativeClick(target, input, label = null) {
+    async function triggerNativeClick(target, input, label = null, desiredChecked = true) {
         if (abortRequested) return;
         const resolvedLabel = label || findLabelForInput(input);
         const primaryNode = resolvedLabel || target || input;
@@ -5387,24 +5387,44 @@ RULES:
         if (abortRequested) return;
 
         if (input && (input.type === 'radio' || input.type === 'checkbox')) {
-            if (!input.checked) {
-                try { input.click(); } catch (e) {}
-            }
-            if (!input.checked) {
-                input.checked = true;
-                const tracker = input._valueTracker;
-                if (tracker) tracker.setValue(false);
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+            const wantChecked = input.type === 'radio' ? true : desiredChecked;
+            if (wantChecked) {
+                if (!input.checked) {
+                    try { input.click(); } catch (e) {}
+                }
+                if (!input.checked) {
+                    input.checked = true;
+                    const tracker = input._valueTracker;
+                    if (tracker) tracker.setValue(false);
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
 
-                const elementsToMark = [resolvedLabel, target, input].filter(Boolean);
-                for (const el of elementsToMark) {
-                    if (el.hasAttribute('aria-checked')) el.setAttribute('aria-checked', 'true');
-                    if (el.classList.contains('q-radio') || el.classList.contains('q-checkbox') || el.tagName === 'LABEL') {
-                        el.classList.add('q-checked');
-                        if (el.classList.contains('p-radio-label') || el.classList.contains('p-checkbox-label')) {
-                            el.classList.add('p-checked');
+                    const elementsToMark = [resolvedLabel, target, input].filter(Boolean);
+                    for (const el of elementsToMark) {
+                        if (el.hasAttribute('aria-checked')) el.setAttribute('aria-checked', 'true');
+                        if (el.classList.contains('q-radio') || el.classList.contains('q-checkbox') || el.tagName === 'LABEL') {
+                            el.classList.add('q-checked');
+                            if (el.classList.contains('p-radio-label') || el.classList.contains('p-checkbox-label')) {
+                                el.classList.add('p-checked');
+                            }
                         }
+                    }
+                }
+            } else {
+                if (input.checked) {
+                    try { input.click(); } catch (e) {}
+                }
+                if (input.checked) {
+                    input.checked = false;
+                    const tracker = input._valueTracker;
+                    if (tracker) tracker.setValue(true);
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+                    const elementsToUnmark = [resolvedLabel, target, input].filter(Boolean);
+                    for (const el of elementsToUnmark) {
+                        if (el.hasAttribute('aria-checked')) el.setAttribute('aria-checked', 'false');
+                        el.classList.remove('q-checked', 'p-checked');
                     }
                 }
             }
