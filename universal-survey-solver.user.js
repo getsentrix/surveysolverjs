@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.19
+// @version      1.1.20
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -15,6 +15,7 @@
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
 // @grant        GM_download
+// @grant        unsafeWindow
 // @connect      generativelanguage.googleapis.com
 // @connect      update.greasyfork.org
 // @run-at       document-idle
@@ -43,7 +44,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.19';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.20';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -589,6 +590,36 @@
         } catch (e) {
             return false;
         }
+    }
+
+    let popupFallbackUntil = 0;
+    let popupFallbackInstalled = false;
+    function enableTabOpenPopupFallback(durationMs = 8000) {
+        popupFallbackUntil = Math.max(popupFallbackUntil, Date.now() + durationMs);
+        if (popupFallbackInstalled) return;
+        popupFallbackInstalled = true;
+        try {
+            const targetWin = (typeof unsafeWindow !== 'undefined' && unsafeWindow) ? unsafeWindow : window;
+            const origOpen = targetWin.open;
+            if (typeof origOpen !== 'function') return;
+            targetWin.open = function (url, target, features) {
+                let opened = null;
+                try {
+                    opened = origOpen.apply(this, arguments);
+                } catch (e) {}
+                if (!opened && url && Date.now() <= popupFallbackUntil) {
+                    try {
+                        const absUrl = new URL(String(url), location.href).href;
+                        if (/^https?:/i.test(absUrl)) {
+                            stampAutoFarmHandoff(true);
+                            GM_openInTab(absUrl, { active: true, insert: true });
+                            return { closed: false, focus() {}, close() {} };
+                        }
+                    } catch (err) {}
+                }
+                return opened;
+            };
+        } catch (e) {}
     }
 
     function readActiveTabLock() {
@@ -1792,6 +1823,20 @@
                 stampAutoFarmHandoff();
                 const roots = collectDocumentRoots();
 
+                // Dismiss blocking PrimeEarn feedback modal ("What happened?") when visible on return
+                const feedbackModalOpen = queryAllInRoots(roots, '[data-test-id="ps_feedback_modal"], [data-testid="ps_feedback_modal"]')
+                    .some(el => isElementVisible(el));
+                if (feedbackModalOpen && !document.hidden) {
+                    const modalCloseBtn = queryAllInRoots(roots, '[data-test-id="ps_feedback_modal"] [data-test-id="close-modal-button"], [data-test-id="close-modal-button"], [data-testid="close-modal-button"]')
+                        .find(el => isElementVisible(el) && !isHudElement(el));
+                    if (modalCloseBtn && isTrueAutoEnabled()) {
+                        updateHUD('Closing feedback modal...', 'farming');
+                        await triggerNativeClick(modalCloseBtn, null, null);
+                        await abortableSleep(500);
+                        continue;
+                    }
+                }
+
                 // Offer-wall / survey-list guard (e.g. PrimeEarn, gain.gg/surveys)
                 if (isOfferWallPage(roots)) {
                     if (!isTrueAutoEnabled()) {
@@ -1823,6 +1868,7 @@
                         if (document.hidden || isOtherTabLockActive()) continue;
                         writeAutoFarmFlag(true);
                         stampAutoFarmHandoff(true);
+                        enableTabOpenPopupFallback(8000);
                         await triggerNativeClick(chosen.el, null, null);
                         await abortableSleep(2000);
                         if (abortRequested || !autoFarmActive) return;
@@ -2371,6 +2417,12 @@
         const btn = findNextOrSubmitButton(cachedRoots);
         if (btn) {
             const label = ((btn.innerText || btn.value || btn.getAttribute('aria-label') || btn.title || btn.closest('[button-title]')?.getAttribute('button-title') || '')).replace(/\s+/g, ' ').trim();
+            const testId = `${btn.getAttribute('data-test-id') || ''} ${btn.closest('[data-test-id]')?.getAttribute('data-test-id') || ''}`;
+            const isSurveyLauncher = /\b(participate|take\s*survey|go\s*to\s*survey|launch\s*survey|enter\s*survey|start\s*survey)\b/i.test(label) ||
+                /\b(ps-start-survey-btn|ps-common-actions-button)\b/i.test(testId);
+            if (isSurveyLauncher) {
+                enableTabOpenPopupFallback(8000);
+            }
             await triggerNativeClick(btn, null, null);
             updateHUD(silentIfAuto ? `Auto: ${label || 'Next'}` : `Clicked: ${label || 'Next'}`, silentIfAuto ? 'farming' : 'active', silentIfAuto ? 0 : 2000);
             return true;
@@ -3091,7 +3143,7 @@
 
         // C. Radio Groups + Batched Matrix Grid Detection
         const radios = queryAllInRoots(roots, 'input[type="radio"]')
-            .filter(r => isElementVisible(r) && !handledInputs.has(r) && !isHudElement(r));
+            .filter(r => isElementVisible(r) && !handledInputs.has(r) && !isHudElement(r) && !r.closest('[data-test-id="ps_feedback_modal"], [data-testid="ps_feedback_modal"]'));
         const nameGroups = new Map();
         let unnamedRowCounter = 0;
         const rowContainerMap = new Map();
@@ -3559,7 +3611,7 @@
         const remainingTextInputs = queryAllInRoots(
             roots,
             'textarea, input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="range"]):not([type="file"]):not([type="image"]), [contenteditable="true"]'
-        ).filter(t => isElementVisible(t) && !t.disabled && !t.readOnly && !handledInputs.has(t) && !isSpecifyInput(t) && !isSearchOrFilterInput(t) && !isNumericTotalOrReadOnlyInput(t) && !isHoneypotOrHiddenInput(t) && !isHudElement(t) && t.getAttribute('role') !== 'combobox');
+        ).filter(t => isElementVisible(t) && !t.disabled && !t.readOnly && !handledInputs.has(t) && !isSpecifyInput(t) && !isSearchOrFilterInput(t) && !isNumericTotalOrReadOnlyInput(t) && !isHoneypotOrHiddenInput(t) && !isHudElement(t) && !t.closest('[data-test-id="ps_feedback_modal"], [data-testid="ps_feedback_modal"]') && t.getAttribute('role') !== 'combobox');
 
         for (const t of remainingTextInputs) {
             const prompt = extractPromptAboveGroup(t, allVisibleInputs) || findPromptAboveElement(t) || '';
