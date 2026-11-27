@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.18
+// @version      1.1.19
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -43,7 +43,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.18';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.19';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2553,8 +2553,13 @@
         }
         if (b.type === 'custom_dropdown') {
             if (touchedElements.has(b.element)) return true;
-            const txt = (b.element.innerText || b.element.value || '').trim();
-            return txt.length > 0 && !/^(select|choose|please select|--|click to select)/i.test(txt);
+            if (Array.from(b.element.querySelectorAll?.('[role="combobox"], input') || []).some(n => touchedElements.has(n))) return true;
+            const valEl = b.element.querySelector?.('.sd-dropdown__value .sv-string-viewer, .select2-selection__rendered, .choices__item--selectable');
+            const rawVal = valEl
+                ? (valEl.innerText || '')
+                : ((b.element.value || b.element.innerText || '').trim());
+            const txt = rawVal.replace(/\s+/g, ' ').trim();
+            return txt.length > 0 && !/^(select|choose|please select|--|click to select|\.\.\.)/i.test(txt);
         }
         if (b.type === 'range') {
             return touchedElements.has(b.element) ||
@@ -3498,16 +3503,23 @@
             blocks.push({ type: 'select', element: s, isAnswered, prompt });
         }
 
-        // F1. Custom ARIA / JS Dropdowns (including Google Forms collapsible [role="listbox"][aria-expanded])
-        const customDropdowns = queryAllInRoots(roots, '[role="combobox"], [aria-haspopup="listbox"], [role="listbox"][aria-expanded], .select2-selection, .choices__inner')
+        // F1. Custom ARIA / JS Dropdowns (including SurveyJS nested comboboxes & Google Forms [role="listbox"][aria-expanded])
+        const customDropdowns = queryAllInRoots(roots, '.sd-dropdown[role="combobox"], [role="combobox"], [aria-haspopup="listbox"], [role="listbox"][aria-expanded], .select2-selection, .choices__inner')
             .filter(el => {
                 if (!isElementVisible(el) || isHudElement(el) || el.closest('header, nav, footer, [role="banner"], [role="navigation"]')) return false;
                 if (blocks.some(b => b.element === el || b.element.contains(el) || el.contains(b.element) || (b.type === 'select' && (getSelectVisualElement(b.element) === el || getBootstrapSelectContainer(b.element)?.contains(el))))) return false;
+                // Skip outer question wrappers (e.g. SurveyJS .sd-question[role="combobox"]) that contain a dedicated inner dropdown trigger
+                if (el.matches('.sd-question, [class*="question" i]') && el.querySelector('.sd-dropdown, [role="combobox"], [aria-haspopup="listbox"]')) return false;
+                // Skip inner readonly filter inputs (e.g. SurveyJS input.sd-dropdown__filter-string-input) inside a parent dropdown combobox
+                if (el.tagName === 'INPUT' && el.readOnly && el.parentElement?.closest('.sd-dropdown, [role="combobox"], [aria-haspopup="listbox"]')) return false;
                 return true;
             });
         for (const cd of customDropdowns) {
+            if (blocks.some(b => b.element === cd || b.element.contains(cd) || cd.contains(b.element))) continue;
             const prompt = extractPromptAboveGroup(cd, allVisibleInputs) || findPromptAboveElement(cd) || 'Select the most appropriate option.';
-            blocks.push({ type: 'custom_dropdown', element: cd, isAnswered: false, prompt });
+            const cdBlock = { type: 'custom_dropdown', element: cd, isAnswered: false, prompt };
+            cdBlock.isAnswered = isBlockAnswered(cdBlock);
+            blocks.push(cdBlock);
         }
 
         // F2. Range Sliders (<input type="range">, excluding video/audio player volume & seek scrubbers)
@@ -4150,13 +4162,22 @@ RULES:
             }
 
             const roots = collectDocumentRoots();
-            const optionPool = triggerEl.getAttribute('role') === 'listbox'
-                ? Array.from(triggerEl.querySelectorAll('[role="option"]'))
-                : queryAllInRoots(
-                    roots,
-                    '[role="option"], .select2-results__option, .choices__item--choice, [class*="menu-option" i], [class*="dropdown-item" i]'
-                );
-            const visibleOptions = optionPool.filter(el => isElementVisible(el) && !isHudElement(el) && el.getAttribute('aria-disabled') !== 'true');
+            const controlledId = triggerEl.getAttribute('aria-controls');
+            const controlledList = controlledId ? document.getElementById(controlledId) : null;
+            const controlledOpts = controlledList
+                ? Array.from(controlledList.querySelectorAll('[role="option"], .sv-list__item, .sd-list__item')).filter(el => isElementVisible(el) && !isHudElement(el) && el.getAttribute('aria-disabled') !== 'true')
+                : [];
+            const optionPool = controlledOpts.length > 0
+                ? controlledOpts
+                : (triggerEl.getAttribute('role') === 'listbox'
+                    ? Array.from(triggerEl.querySelectorAll('[role="option"]'))
+                    : queryAllInRoots(
+                        roots,
+                        '[role="option"], .select2-results__option, .choices__item--choice, [class*="menu-option" i], [class*="dropdown-item" i]'
+                    ));
+            const visibleOptions = controlledOpts.length > 0
+                ? controlledOpts
+                : optionPool.filter(el => isElementVisible(el) && !isHudElement(el) && el.getAttribute('aria-disabled') !== 'true');
 
             if (visibleOptions.length === 0) {
                 if (triggerEl.tagName === 'INPUT' && !triggerEl.readOnly && !triggerEl.disabled) {
