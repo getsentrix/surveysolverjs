@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.4
+// @version      1.1.5
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.4';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.5';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2530,12 +2530,17 @@
             return true;
         }
 
-        // 1. Structural check: walk up to 4 ancestor wrappers; if any wrapper contains EXACTLY 1 radio/checkbox,
+        // 1. Structural check: walk up to 4 ancestor wrappers; if any wrapper contains EXACTLY 1 visible choice toggle,
         //    this text box is a companion "Other / Specify" field belonging to that single choice row.
         const toggleSelector = 'input[type="radio"], input[type="checkbox"], [role="radio"], [role="checkbox"]';
+        const getChoiceToggles = (scope) => Array.from(scope.querySelectorAll(toggleSelector)).filter(t => {
+            if (!isElementVisible(t)) return false;
+            const sig = `${t.id || ''} ${t.name || ''} ${typeof t.className === 'string' ? t.className : ''}`;
+            return !/(?:^|[\s_-])(?:next|prev|back|nextbtn|prevbtn)(?:$|[\s_-])/i.test(sig);
+        });
         let anc = inp.parentElement;
         for (let depth = 0; depth < 4 && anc && anc !== document.body; depth++) {
-            const toggles = anc.querySelectorAll(toggleSelector);
+            const toggles = getChoiceToggles(anc);
             if (toggles.length === 1) {
                 return true;
             }
@@ -2545,7 +2550,7 @@
 
         // 2. Semantic row container check (for nested table/list/label rows)
         const row = inp.closest('tr, li, [class*="choice" i], [class*="option" i], [class*="Selection" i], label');
-        if (row && row.querySelectorAll(toggleSelector).length === 1) {
+        if (row && getChoiceToggles(row).length === 1) {
             return true;
         }
 
