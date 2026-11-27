@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.20
+// @version      1.1.21
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -44,7 +44,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.20';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.21';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -3615,7 +3615,8 @@
 
         for (const t of remainingTextInputs) {
             const prompt = extractPromptAboveGroup(t, allVisibleInputs) || findPromptAboveElement(t) || '';
-            if (isOptionalOrUnnecessaryTextInput(t, prompt, existingNonTextBlocks)) continue;
+            const hasImgPrompt = Boolean(findQuestionImageNearElement(t));
+            if (!hasImgPrompt && isOptionalOrUnnecessaryTextInput(t, prompt, existingNonTextBlocks)) continue;
             const isAnswered = (t.value || t.textContent || '').trim().length > 0;
             blocks.push({ type: 'text', element: t, isAnswered, prompt });
         }
@@ -3928,7 +3929,7 @@ RULES:
                 updateHUD(`Selected: ${block.choices[trapIdx].text.slice(0, 28)}...`, 'active', 2500);
                 return;
             }
-            await executeMultipleChoice(fullPrompt, block.choices, block.prompt);
+            await executeMultipleChoice(fullPrompt, block.choices, block.prompt, block.element);
         } else if (block.type === 'select') {
             await executeSelectDropdown(block.element, fullPrompt);
         } else if (block.type === 'custom_dropdown') {
@@ -4600,10 +4601,66 @@ Output strictly a JSON object formatted as: {"counts": [count0, count1, count2]}
         return 'OPEN_ENDED';
     }
 
+    function findQuestionImageNearElement(el) {
+        if (!el) return null;
+        try {
+            const er = el.getBoundingClientRect();
+            const scope = el.closest('form, .question, .QuestionOuter, .sd-question, fieldset, [class*="question" i], [role="group"], main') || document.body;
+            if (!scope) return null;
+            const imgs = Array.from(scope.querySelectorAll('img, canvas')).filter(img => {
+                if (!isElementVisible(img) || isHudElement(img)) return false;
+                const sig = `${img.className || ''} ${img.alt || ''} ${img.id || ''} ${img.getAttribute?.('src')?.slice(0, 120) || ''}`;
+                if (/\b(logo|brand[-_]?icon|avatar|captcha)\b/i.test(sig)) return false;
+                const ir = img.getBoundingClientRect();
+                if (ir.width < 140 || ir.height < 24 || ir.height > 440) return false;
+                const isExplicitTa = img.matches('.taImage, img[alt="TA"], [class*="taimage" i]');
+                return isExplicitTa || (ir.top <= er.top + 12 && (er.top - ir.bottom) <= 360);
+            });
+            if (imgs.length === 0) return null;
+            imgs.sort((a, b) => {
+                const aTa = a.matches('.taImage, img[alt="TA"], [class*="taimage" i]') ? 1 : 0;
+                const bTa = b.matches('.taImage, img[alt="TA"], [class*="taimage" i]') ? 1 : 0;
+                if (aTa !== bTa) return bTa - aTa;
+                return Math.abs(er.top - a.getBoundingClientRect().bottom) - Math.abs(er.top - b.getBoundingClientRect().bottom);
+            });
+            return imgs[0];
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function extractImageInlineData(imgEl) {
+        if (!imgEl) return null;
+        try {
+            if (imgEl.tagName === 'IMG') {
+                const src = imgEl.getAttribute('src') || imgEl.src || '';
+                const m = src.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/);
+                if (m) return { mimeType: m[1], data: m[2] };
+            }
+            const w = imgEl.naturalWidth || imgEl.width || Math.round(imgEl.getBoundingClientRect().width);
+            const h = imgEl.naturalHeight || imgEl.height || Math.round(imgEl.getBoundingClientRect().height);
+            if (w > 0 && h > 0) {
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(imgEl, 0, 0, w, h);
+                    const dataUrl = canvas.toDataURL('image/png');
+                    const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/);
+                    if (m) return { mimeType: m[1], data: m[2] };
+                }
+            }
+        } catch (e) {}
+        return null;
+    }
+
     async function executeTextTyping(target, promptText) {
         const rowLabel = extractRowLabelForInput(target);
         const mode = classifyTextInput(target, promptText, rowLabel);
         let constraints = extractDOMConstraints(target, promptText);
+        const promptImageEl = findQuestionImageNearElement(target);
+        const imagePart = extractImageInlineData(promptImageEl);
 
         const typeValueOnTarget = async (el, valStr, cstr) => {
             if (mode === 'DATE_INPUT') {
@@ -4621,7 +4678,7 @@ Output strictly a JSON object formatted as: {"counts": [count0, count1, count2]}
 
         try {
             updateHUD(`Generating ${mode.toLowerCase().replace('_', ' ')}...`, 'working');
-            const responseText = await queryGeminiForText(promptText, rowLabel, constraints, mode);
+            const responseText = await queryGeminiForText(promptText, rowLabel, constraints, mode, imagePart);
             if (abortRequested) return;
             let fittedText = fitToConstraints(responseText, constraints, mode);
 
@@ -4648,7 +4705,7 @@ Output strictly a JSON object formatted as: {"counts": [count0, count1, count2]}
                 validationRetryCounts.set(target, (validationRetryCounts.get(target) || 0) + 1);
                 constraints = extractDOMConstraints(target, `${promptText}\n${postErr}`);
                 updateHUD('Adjusting length...', 'working');
-                const retryRaw = await queryGeminiForText(`${promptText}\n[FIX VALIDATION ERROR: ${postErr}]`, rowLabel, constraints, mode);
+                const retryRaw = await queryGeminiForText(`${promptText}\n[FIX VALIDATION ERROR: ${postErr}]`, rowLabel, constraints, mode, imagePart);
                 if (!abortRequested && retryRaw) {
                     fittedText = fitToConstraints(retryRaw, constraints, mode);
                     await typeValueOnTarget(target, fittedText, constraints);
@@ -4816,9 +4873,12 @@ Output strictly a JSON object formatted as: {"counts": [count0, count1, count2]}
         });
     }
 
-    function queryGeminiForText(prompt, rowLabel, constraints, mode) {
+    function queryGeminiForText(prompt, rowLabel, constraints, mode, imagePart = null) {
         return new Promise((resolve, reject) => {
             let contextualPrompt = rowLabel ? `${prompt}\nSpecific Field: ${rowLabel}` : prompt;
+            if (imagePart) {
+                contextualPrompt += '\n[QUESTION RENDERED AS IMAGE: Read the exact question inside the attached image carefully and answer THAT exact question directly.]';
+            }
             let systemInstruction = '';
             let maxTokens = 300;
             let temp = 0.5;
@@ -4880,8 +4940,12 @@ RULES:
                 temp = 0.78;
             }
 
+            const userParts = imagePart
+                ? [{ inlineData: imagePart }, { text: contextualPrompt }]
+                : [{ text: contextualPrompt }];
+
             const body = {
-                contents: [{ parts: [{ text: contextualPrompt }] }],
+                contents: [{ parts: userParts }],
                 systemInstruction: { parts: [{ text: systemInstruction }] },
                 generationConfig: {
                     temperature: temp,
@@ -5299,10 +5363,11 @@ RULES:
         return -1;
     }
 
-    async function executeMultipleChoice(prompt, choices, stampPrompt = '') {
+    async function executeMultipleChoice(prompt, choices, stampPrompt = '', targetEl = null) {
         try {
             updateHUD('Deciding option...', 'working');
-            const selectedIndices = await queryGeminiForChoice(prompt, choices);
+            const imagePart = extractImageInlineData(findQuestionImageNearElement(targetEl || choices[0]?.target));
+            const selectedIndices = await queryGeminiForChoice(prompt, choices, imagePart);
             if (abortRequested) return;
 
             if (!selectedIndices || selectedIndices.length === 0) {
@@ -5349,14 +5414,14 @@ RULES:
         }
     }
 
-    function queryGeminiForChoice(prompt, choices) {
+    function queryGeminiForChoice(prompt, choices, imagePart = null) {
         return new Promise((resolve, reject) => {
             const isMultiSelect = /select all|all that apply|which of the following|any of the following|choose all/i.test(prompt) ||
                                   (choices[0]?.input && choices[0].input.type === 'checkbox') ||
                                   (choices[0]?.target && choices[0].target.getAttribute('role') === 'checkbox');
 
             const choicesFormatted = choices.map((c, i) => `Option [${i}]: "${c.text}"`).join('\n');
-            const userContent = `Survey Context / Question:\n${prompt}\n\nAvailable Options:\n${choicesFormatted}`;
+            const userContent = `Survey Context / Question:\n${prompt}${imagePart ? '\n[QUESTION ALSO RENDERED AS IMAGE ABOVE — read the attached image first if DOM text is generic.]' : ''}\n\nAvailable Options:\n${choicesFormatted}`;
 
             const systemInstruction = `${buildConsistencySystemPrefix()}You are an authentic adult participant completing a web survey.
 Mode: ${isMultiSelect ? 'MULTI-SELECT (select all that apply; 1-2 realistic items for brand lists, exact matches for factual checks)' : 'SINGLE-SELECT (choose exactly 1 index)'}.
@@ -5367,8 +5432,12 @@ RULES:
 4. For rating/opinion scales (1-5, 1-10, agree/disagree, satisfaction), choose a realistic varied mid-to-positive rating (e.g. 6-9 on 1-10, 3-4 on 1-5) matching a genuine customer rather than defaulting to index 0.
 5. Output strictly JSON with NO explanations or extra keys: {"selected": [<0-based index>]}`;
 
+            const userParts = imagePart
+                ? [{ inlineData: imagePart }, { text: userContent }]
+                : [{ text: userContent }];
+
             const body = {
-                contents: [{ parts: [{ text: userContent }] }],
+                contents: [{ parts: userParts }],
                 systemInstruction: { parts: [{ text: systemInstruction }] },
                 generationConfig: {
                     temperature: 0.35,
