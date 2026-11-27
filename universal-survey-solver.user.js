@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.11
+// @version      1.1.12
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.11';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.12';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2534,6 +2534,9 @@
             return touchedElements.has(b.element) ||
                 Boolean(b.element.closest?.('.activated'));
         }
+        if (b.type === 'rank_sort') {
+            return b.cards.filter(c => c.classList.contains('sq-ranksort-card-dropped')).length >= b.requiredRanks;
+        }
         if (b.type === 'text') {
             const hasText = (b.element.value || b.element.textContent || '').trim().length > 0;
             if (!hasText) return false;
@@ -3322,6 +3325,34 @@
             }
         }
 
+        // D2. Decipher Rank-Sort Widgets (.sq-ranksort)
+        const rankSorts = queryAllInRoots(roots, '.sq-ranksort')
+            .filter(rs => isElementVisible(rs) && !isHudElement(rs));
+        for (const rs of rankSorts) {
+            const cards = Array.from(rs.querySelectorAll('ul.sq-ranksort-cards > li.sq-ranksort-card'));
+            const buckets = Array.from(rs.querySelectorAll('ul.sq-ranksort-buckets > li'));
+            if (cards.length < 2 || buckets.length < 1) continue;
+            rs.querySelectorAll('select').forEach(sel => handledInputs.add(sel));
+            cards.forEach(c => handledCardElements.add(c));
+            const requiredRanks = Math.min(buckets.length, cards.length);
+            const droppedCount = cards.filter(c => c.classList.contains('sq-ranksort-card-dropped')).length;
+            const bucketLabels = Array.from(rs.querySelectorAll('ul.sq-ranksort-buckets > li.sq-ranksort-bucket .sq-ranksort-bucket-text'))
+                .map(b => cleanOptionText(b.innerText)).filter(Boolean);
+            const prompt = cleanOptionText(rs.querySelector('.question-text')?.innerText) ||
+                extractPromptAboveGroup(rs, allVisibleInputs) ||
+                'Rank the top items.';
+            blocks.push({
+                type: 'rank_sort',
+                element: rs,
+                cards,
+                buckets,
+                bucketLabels,
+                requiredRanks,
+                isAnswered: droppedCount >= requiredRanks,
+                prompt
+            });
+        }
+
         // E. Custom Div / Card Groups (supports wrapped [role="button"] / Tailwind / FontAwesome choice cards, excludes nav bars & overlaps)
         const navActionLabelRx = /^(?:[\s«»‹›<>→←⬅➡❯❮]+)?(next(?:\s*(?:page|step|question))?|continue|proceed|forward|submit|back|go\s*back|previous(?:\s*(?:page|step|question))?|prev|return|cancel|close|exit|finish|done|start(?:\s*survey)?|begin|save(?:\s*(?:&|and)\s*continue)?|reset(?:\s*form)?|clear(?:\s*(?:form|all|selection|answers?))?|skip(?:\s*(?:question|survey))?|i\s*can'?t\s*answer(?:\s*this\s*question)?|contact\s*(?:form\s*)?owner|edit\s*(?:this\s*)?form)(?:[\s«»‹›<>→←⬅➡❯❮!]+)?$/i;
         const formNavControlRx = /^(?:back|go\s*back|previous(?:\s*(?:page|step|question))?|prev|next(?:\s*(?:page|step|question))?|submit|clear\s*form|reset\s*form|edit\s*this\s*form|contact\s*form\s*owner)$/i;
@@ -3693,6 +3724,72 @@
         return /\b(leave\s+(?:this|the)\s+(?:question|box|field|item)\s+blank|do\s+not\s+(?:answer|select|fill|enter)\s+this\s+(?:question|box|field|item)|skip\s+this\s+question)\b/i.test(prompt);
     }
 
+    async function solveRankSort(block, fullPrompt) {
+        if (abortRequested) return;
+        const alreadyDropped = block.cards.filter(c => c.classList.contains('sq-ranksort-card-dropped')).length;
+        const needed = Math.max(0, block.requiredRanks - alreadyDropped);
+        if (needed === 0) return;
+
+        const available = block.cards
+            .filter(c => !c.classList.contains('sq-ranksort-card-dropped'))
+            .map(c => ({
+                el: c,
+                text: cleanOptionText(c.querySelector('.sq-ranksort-card-text')?.innerText || c.innerText)
+            }))
+            .filter(item => item.text.length > 0);
+        if (available.length === 0) return;
+
+        const rankDesc = block.bucketLabels?.length
+            ? `Ranks to fill (in order): ${block.bucketLabels.slice(alreadyDropped, alreadyDropped + needed).join(' -> ')}`
+            : `Pick ${needed} items in rank order (most important first).`;
+        const opts = available.map((it, i) => `[${i}] ${it.text}`).join('\n');
+        const userContent = `${fullPrompt}\n${rankDesc}\n\nAvailable Items:\n${opts}`;
+        const systemInstruction = `${buildConsistencySystemPrefix()}You are a consistent adult survey participant ranking items.
+RULES:
+1. Pick exactly ${Math.min(needed, available.length)} distinct 0-based indices in rank order (highest rank first).
+2. Stay consistent with your persona and prior answers.
+3. Output strictly JSON with NO extra keys: {"ranked": [<idx1>, <idx2>, ...]}`;
+
+        updateHUD(`Ranking top ${needed}...`, 'working');
+        let picks = [];
+        try {
+            const res = await callGeminiJSON(userContent, systemInstruction, 120);
+            const arr = Array.isArray(res?.ranked) ? res.ranked : (Array.isArray(res) ? res : []);
+            const seen = new Set();
+            for (const v of arr) {
+                const idx = parseInt(v, 10);
+                if (!isNaN(idx) && idx >= 0 && idx < available.length && !seen.has(idx)) {
+                    seen.add(idx);
+                    picks.push(idx);
+                    if (picks.length >= needed) break;
+                }
+            }
+        } catch (err) {
+            if (abortRequested) return;
+            console.warn('[Gemini Typer] RankSort fallback:', err.message);
+        }
+
+        // Fill any missing slots deterministically so validation never blocks
+        for (let i = 0; picks.length < Math.min(needed, available.length) && i < available.length; i++) {
+            if (!picks.includes(i)) picks.push(i);
+        }
+
+        const chosenTexts = [];
+        for (const idx of picks) {
+            if (abortRequested) return;
+            const item = available[idx];
+            if (!item) continue;
+            chosenTexts.push(item.text);
+            await triggerNativeClick(item.el);
+            await abortableSleep(pickRangeDelay(SPD.betweenClicks));
+        }
+
+        if (!abortRequested && chosenTexts.length > 0) {
+            recordSessionAnswer(block.prompt || fullPrompt, chosenTexts.join(' > '));
+            updateHUD(`Ranked ${chosenTexts.length} items`, 'active', 2500);
+        }
+    }
+
     async function solveSingleBlock(block, sharedConcept = '', rawSelection = '', roots = null) {
         if (abortRequested) return;
         const cleanShared = sharedConcept && !(block.prompt || '').includes(sharedConcept) ? sharedConcept : '';
@@ -3708,6 +3805,8 @@
 
         if (block.type === 'matrix_grid') {
             await solveMatrixGrid(block, fullPrompt);
+        } else if (block.type === 'rank_sort') {
+            await solveRankSort(block, fullPrompt);
         } else if (block.type === 'number_grid') {
             await solveNumberGrid(block, fullPrompt);
         } else if (block.type === 'text_list') {
