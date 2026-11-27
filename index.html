@@ -1,0 +1,2419 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+  <title>Universal Survey Solver — Setup</title>
+  <meta name="description" content="Configure your Gemini API key, respondent persona, True Auto offer-wall behavior, and keyboard HUD controls for Universal Survey Solver" />
+
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('gt_welcome_theme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var isDark = saved ? saved === 'dark' : (prefersDark !== false);
+        document.documentElement.classList.toggle('dark', isDark);
+        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      --bg: #fafafa;
+      --surface-1: #ffffff;
+      --surface-2: #f4f4f5;
+      --surface-3: #e4e4e7;
+      --surface-hover: #ececf0;
+      --border: rgba(9, 9, 11, 0.09);
+      --border-strong: rgba(9, 9, 11, 0.16);
+      --grid-line: rgba(9, 9, 11, 0.045);
+
+      --text: #09090b;
+      --text-muted: #52525b;
+      --text-subtle: #64646f;
+
+      --primary: #09090b;
+      --primary-fg: #fafafa;
+      --primary-hover: #27272a;
+
+      --accent: #047857;
+      --accent-hover: #065f46;
+      --accent-fg: #ffffff;
+      --accent-soft: rgba(4, 120, 87, 0.08);
+      --accent-border: rgba(4, 120, 87, 0.28);
+      --accent-text: #047857;
+
+      --amber: #b45309;
+      --danger: #dc2626;
+      --danger-border: rgba(220, 38, 38, 0.32);
+      --danger-text: #b91c1c;
+
+      --shadow-sm: 0 1px 2px rgba(9, 9, 11, 0.04);
+      --shadow-hud: 0 14px 32px -8px rgba(9, 9, 11, 0.26), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    html.dark {
+      --bg: #09090b;
+      --surface-1: #111114;
+      --surface-2: #18181b;
+      --surface-3: #27272a;
+      --surface-hover: #202025;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --grid-line: rgba(255, 255, 255, 0.035);
+
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --text-subtle: #8b8b96;
+
+      --primary: #f4f4f5;
+      --primary-fg: #09090b;
+      --primary-hover: #ffffff;
+
+      --accent: #10b981;
+      --accent-hover: #34d399;
+      --accent-fg: #042f2e;
+      --accent-soft: rgba(16, 185, 129, 0.11);
+      --accent-border: rgba(16, 185, 129, 0.3);
+      --accent-text: #34d399;
+
+      --amber: #f59e0b;
+      --danger: #ef4444;
+      --danger-border: rgba(239, 68, 68, 0.36);
+      --danger-text: #f87171;
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+      --shadow-hud: 0 20px 44px -10px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out);
+    }
+
+    ::selection {
+      background-color: var(--accent-soft);
+      color: var(--accent-text);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button, input, select {
+      font: inherit;
+      color: inherit;
+    }
+
+    :is(a, button, input, select, summary, [tabindex]):focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .sr-only:focus {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 100;
+      width: auto;
+      height: auto;
+      margin: 0;
+      padding: 8px 16px;
+      clip: auto;
+      border-radius: 8px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      font-weight: 500;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 920px;
+      margin: 0 auto;
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+
+    /* Top Bar */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      border-bottom: 1px solid var(--border);
+      background-color: var(--bg);
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      height: 56px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      background-color: var(--surface-2);
+      border: 1px solid var(--border-strong);
+      color: var(--accent-text);
+    }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .bridge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-1);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      transition: border-color 180ms var(--ease-out), background-color 180ms var(--ease-out), color 180ms var(--ease-out);
+    }
+
+    .bridge-pill.is-connected {
+      border-color: var(--accent-border);
+      background-color: var(--accent-soft);
+      color: var(--accent-text);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--amber);
+      flex-shrink: 0;
+      transition: background-color 180ms var(--ease-out);
+    }
+
+    .bridge-pill.is-connected .status-dot {
+      background-color: var(--accent);
+    }
+
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-1);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: border-color 150ms var(--ease-out), color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+    }
+
+    .nav-btn:hover {
+      border-color: var(--border-strong);
+      background-color: var(--surface-2);
+      color: var(--text);
+    }
+
+    .nav-btn.is-update-ready {
+      border-color: var(--accent-border);
+      background-color: var(--accent);
+      color: var(--accent-fg);
+      font-weight: 600;
+    }
+
+    .nav-btn.is-update-ready:hover {
+      background-color: var(--accent-hover);
+      border-color: var(--accent-hover);
+      color: var(--accent-fg);
+    }
+
+    .nav-btn svg.is-spinning {
+      animation: spin-refresh 0.8s linear infinite;
+    }
+
+    @keyframes spin-refresh {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .icon-btn {
+      width: 32px;
+      padding: 0;
+    }
+
+    /* Main Content */
+    .main {
+      padding-top: 40px;
+      padding-bottom: 56px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      animation: reveal-up 380ms var(--ease-out) both;
+    }
+
+    /* Intro & Progress */
+    .intro {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .intro-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .intro h1 {
+      margin: 0;
+      font-size: clamp(24px, 3.6vw, 28px);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+    }
+
+    .progress-readout {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-subtle);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .intro p {
+      margin: 0;
+      max-width: 60ch;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .progress-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .progress-track {
+      position: relative;
+      flex: 1;
+      height: 4px;
+      border-radius: 4px;
+      background-color: var(--surface-2);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 4px;
+      background-color: var(--accent);
+      transition: width 360ms var(--ease-out);
+    }
+
+    .step-chips {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-subtle);
+      flex-shrink: 0;
+    }
+
+    .step-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 180ms var(--ease-out);
+    }
+
+    .step-chip.is-done {
+      color: var(--accent-text);
+      font-weight: 500;
+    }
+
+    .step-chip-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--border-strong);
+      transition: background-color 180ms var(--ease-out);
+    }
+
+    .step-chip.is-done .step-chip-dot {
+      background-color: var(--accent);
+    }
+
+    /* Setup Grid: 01 + 02 side by side on desktop */
+    .setup-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+      align-items: stretch;
+    }
+
+    /* Section Card */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background-color: var(--surface-1);
+      box-shadow: var(--shadow-sm);
+      transition: border-color 180ms var(--ease-out);
+    }
+
+    .panel:hover {
+      border-color: var(--border-strong);
+    }
+
+    .panel-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 20px 20px 0;
+    }
+
+    .panel-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .step-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      background-color: var(--surface-2);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      transition: background-color 180ms var(--ease-out), border-color 180ms var(--ease-out), color 180ms var(--ease-out);
+    }
+
+    .step-index.is-done {
+      border-color: var(--accent-border);
+      background-color: var(--accent-soft);
+      color: var(--accent-text);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+    }
+
+    .meta-caption {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-subtle);
+    }
+
+    .meta-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-subtle);
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-1);
+    }
+
+    .panel-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      padding: 12px 20px 20px;
+      gap: 16px;
+    }
+
+    .panel-desc {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .inline-link {
+      color: var(--text);
+      text-decoration: underline;
+      text-decoration-color: var(--border-strong);
+      text-underline-offset: 3px;
+      transition: text-decoration-color 150ms var(--ease-out);
+    }
+
+    .inline-link:hover {
+      text-decoration-color: var(--accent);
+    }
+
+    /* Key Form */
+    .key-box {
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-2);
+    }
+
+    .key-box-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .key-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .key-status {
+      font-size: 12px;
+      color: var(--text-subtle);
+      transition: color 160ms var(--ease-out);
+    }
+
+    .key-status.is-ok {
+      color: var(--accent-text);
+      font-weight: 500;
+    }
+
+    .key-status.is-err {
+      color: var(--danger-text);
+      font-weight: 500;
+    }
+
+    .key-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .input-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    .key-input {
+      width: 100%;
+      height: 36px;
+      padding: 0 36px 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background-color: var(--surface-1);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+      transition: border-color 150ms var(--ease-out);
+    }
+
+    .key-input::placeholder {
+      font-family: var(--font-sans);
+      color: var(--text-subtle);
+    }
+
+    .key-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .vis-btn {
+      position: absolute;
+      top: 50%;
+      right: 4px;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-subtle);
+      cursor: pointer;
+      transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+    }
+
+    .vis-btn:hover {
+      background-color: var(--surface-2);
+      color: var(--text);
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 16px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out), color 150ms var(--ease-out), transform 110ms var(--ease-out);
+    }
+
+    .btn:active {
+      transform: scale(0.985);
+    }
+
+    .btn-accent {
+      background-color: var(--accent);
+      color: var(--accent-fg);
+      font-weight: 600;
+    }
+
+    .btn-accent:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: var(--primary-fg);
+      font-weight: 600;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-ghost {
+      border-color: var(--border-strong);
+      background-color: var(--surface-1);
+      color: var(--text);
+    }
+
+    .btn-ghost:hover {
+      background-color: var(--surface-hover);
+    }
+
+    .btn-danger-ghost {
+      border-color: var(--border);
+      background-color: var(--surface-1);
+      color: var(--text-muted);
+    }
+
+    .btn-danger-ghost:hover {
+      border-color: var(--danger-border);
+      color: var(--danger-text);
+    }
+
+    .is-hidden {
+      display: none !important;
+    }
+
+    /* Manual Disclosure */
+    .manual-details {
+      margin-top: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background-color: transparent;
+    }
+
+    .manual-details summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      list-style: none;
+      transition: color 150ms var(--ease-out);
+    }
+
+    .manual-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .manual-details summary:hover {
+      color: var(--text);
+    }
+
+    .chevron {
+      transition: transform 200ms var(--ease-out);
+    }
+
+    .manual-details[open] .chevron {
+      transform: rotate(180deg);
+    }
+
+    .manual-body {
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .manual-body code {
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-2);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text);
+    }
+
+    /* Launch Rows */
+    .launch-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .launch-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-2);
+    }
+
+    .launch-info {
+      min-width: 0;
+      flex: 1 1 200px;
+    }
+
+    .launch-domain {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .launch-sub {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .switch-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      width: 44px;
+      height: 24px;
+      padding: 2px;
+      border-radius: 12px;
+      border: 1px solid var(--border-strong);
+      background-color: var(--surface-3);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background-color 180ms var(--ease-out), border-color 180ms var(--ease-out);
+    }
+
+    .switch-btn[aria-checked="true"] {
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .switch-knob {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background-color: #ffffff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+      transform: translateX(0);
+      transition: transform 180ms var(--ease-out);
+    }
+
+    .switch-btn[aria-checked="true"] .switch-knob {
+      transform: translateX(20px);
+    }
+
+    /* Persona Profile */
+    .profile-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .profile-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .profile-field.is-span-2 {
+      grid-column: span 2;
+    }
+
+    .profile-field label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .profile-input {
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background-color: var(--surface-1);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--text);
+      transition: border-color 150ms var(--ease-out);
+    }
+
+    .profile-input::placeholder {
+      color: var(--text-subtle);
+    }
+
+    .profile-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .profile-footer-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .profile-preview {
+      flex: 1 1 320px;
+      min-width: 0;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-1);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Interactive HUD Workbench + Keybinds Split */
+    .workbench-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .hud-stage {
+      display: flex;
+      flex-direction: column;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background-color: var(--surface-2);
+    }
+
+    .hud-stage-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      background-color: var(--surface-1);
+      font-size: 12px;
+      color: var(--text-subtle);
+    }
+
+    .hud-stage-label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .reset-link {
+      border: 0;
+      background: transparent;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+    }
+
+    .reset-link:hover {
+      background-color: var(--surface-2);
+      color: var(--text);
+    }
+
+    .hud-canvas {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 20px;
+      flex: 1;
+      padding: 20px 16px 16px;
+      background-image:
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    /* Simulated Survey Page Inside Workbench */
+    .demo-survey-card {
+      width: 100%;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-1);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .demo-survey-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .demo-survey-q {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .demo-survey-opts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .demo-opt {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background-color: var(--surface-2);
+      font-size: 12px;
+      color: var(--text-muted);
+      transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), color 160ms var(--ease-out);
+    }
+
+    .demo-opt-box {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border-strong);
+      background-color: var(--surface-1);
+      flex-shrink: 0;
+      transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+    }
+
+    .demo-opt.is-picked {
+      border-color: var(--accent-border);
+      background-color: var(--accent-soft);
+      color: var(--text);
+    }
+
+    .demo-opt.is-picked .demo-opt-box {
+      border-color: var(--accent);
+      background-color: var(--accent);
+    }
+
+    .demo-survey-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-subtle);
+    }
+
+    .demo-next-chip {
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      background-color: var(--surface-2);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+    }
+
+    .demo-next-chip.is-lit {
+      background-color: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+
+    .hud-dock {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+    }
+
+    /* Faithful Userscript Pill with Smooth Collapse */
+    .mock-hud {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 8px 6px 12px;
+      border-radius: 999px;
+      background-color: #212121;
+      color: #ececec;
+      box-shadow: var(--shadow-hud);
+      transition: padding 220ms var(--ease-out), gap 220ms var(--ease-out);
+    }
+
+    .mock-hud.is-minimized {
+      padding: 6px 8px;
+      gap: 2px;
+    }
+
+    .mock-status-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 0;
+      padding: 2px 4px 2px 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .mock-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10a37f;
+      flex-shrink: 0;
+      transition: background-color 180ms var(--ease-out), transform 180ms var(--ease-out);
+    }
+
+    .mock-dot.is-working {
+      background-color: #f59e0b;
+      animation: dot-pulse 1.2s ease-in-out infinite;
+    }
+
+    .mock-dot.is-farming {
+      background-color: #10a37f;
+      animation: dot-pulse 1.3s ease-in-out infinite;
+    }
+
+    .mock-dot.is-error {
+      background-color: #ef4444;
+    }
+
+    .mock-collapsible {
+      display: inline-flex;
+      align-items: center;
+      overflow: hidden;
+      max-width: 160px;
+      opacity: 1;
+      transform: scale(1);
+      transition:
+        max-width 220ms var(--ease-out),
+        opacity 160ms var(--ease-out),
+        transform 200ms var(--ease-out),
+        margin 220ms var(--ease-out),
+        padding 220ms var(--ease-out);
+    }
+
+    .mock-hud.is-minimized .mock-collapsible {
+      max-width: 0;
+      opacity: 0;
+      transform: scale(0.92);
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      pointer-events: none;
+    }
+
+    .mock-status-text {
+      font-size: 12px;
+      font-weight: 500;
+      color: #d4d4d4;
+      white-space: nowrap;
+    }
+
+    .mock-divider {
+      width: 1px;
+      height: 16px;
+      margin: 0 4px;
+      background-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .mock-pill-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 28px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 999px;
+      background-color: rgba(255, 255, 255, 0.08);
+      color: #ececec;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out), transform 110ms var(--ease-out);
+    }
+
+    .mock-pill-btn:hover {
+      background-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .mock-pill-btn:active {
+      transform: scale(0.96);
+    }
+
+    .mock-pill-btn.is-primary {
+      background-color: #ececec;
+      color: #171717;
+      font-weight: 600;
+    }
+
+    .mock-pill-btn.is-primary:hover {
+      background-color: #ffffff;
+    }
+
+    .mock-pill-btn.is-stop {
+      background-color: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fecaca;
+    }
+
+    .mock-pill-btn.is-stop:hover {
+      background-color: rgba(239, 68, 68, 0.3);
+      color: #ffffff;
+    }
+
+    .mock-pill-btn.is-auto-on {
+      background-color: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #6ee7b7;
+    }
+
+    .mock-pill-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: #a1a1aa;
+      cursor: pointer;
+      transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+    }
+
+    .mock-pill-icon:hover {
+      background-color: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+    }
+
+    .hud-caption {
+      width: 100%;
+      margin: 0;
+      text-align: left;
+      font-size: 12px;
+      color: var(--text-muted);
+      min-height: 20px;
+    }
+
+    .hud-caption strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .hud-caption code {
+      padding: 2px 6px;
+      border-radius: 4px;
+      background-color: var(--surface-1);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    /* Keybind List */
+    .bind-list {
+      display: flex;
+      flex-direction: column;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background-color: var(--surface-1);
+    }
+
+    .bind-row {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex: 1;
+      gap: 4px;
+      padding: 12px 16px;
+      background-color: var(--surface-1);
+      transition: background-color 150ms var(--ease-out);
+    }
+
+    .bind-row + .bind-row {
+      border-top: 1px solid var(--border);
+    }
+
+    .bind-row:hover {
+      background-color: var(--surface-2);
+    }
+
+    .bind-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .bind-keys {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-subtle);
+    }
+
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      border-bottom-width: 2px;
+      background-color: var(--surface-2);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text);
+      transition: border-color 150ms var(--ease-out);
+    }
+
+    .bind-row:hover .kbd {
+      border-color: var(--accent-border);
+    }
+
+    .bind-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .bind-detail {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 0 32px;
+    }
+
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px 20px;
+      font-size: 12px;
+      color: var(--text-subtle);
+    }
+
+    .footer-specs {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .footer-link {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color 150ms var(--ease-out);
+    }
+
+    .footer-link:hover {
+      color: var(--text);
+    }
+
+    .update-badge {
+      color: var(--accent-text);
+      font-weight: 500;
+    }
+
+    @keyframes reveal-up {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes dot-pulse {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.25);
+        opacity: 0.65;
+      }
+    }
+
+    @media (max-width: 780px) {
+      .setup-grid,
+      .workbench-grid,
+      .profile-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .profile-field.is-span-2 {
+        grid-column: span 1;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .container {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .main {
+        padding-top: 28px;
+        gap: 20px;
+      }
+
+      .panel-head {
+        padding: 16px 16px 0;
+      }
+
+      .panel-body {
+        padding: 12px 16px 16px;
+      }
+
+      .step-chips {
+        display: none;
+      }
+
+      .demo-survey-opts {
+        grid-template-columns: 1fr;
+      }
+
+      .hide-xs {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="sr-only">Skip to setup</a>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        </span>
+        <span class="brand-title">Universal Survey Solver</span>
+      </div>
+
+      <div class="topbar-actions">
+        <div id="bridgeChip" class="bridge-pill" role="status" aria-live="polite">
+          <span id="bridgeDot" class="status-dot" aria-hidden="true"></span>
+          <span id="bridgeText">Waiting for script</span>
+        </div>
+
+        <button type="button" id="updateActionBtn" class="nav-btn is-hidden" title="Check Greasy Fork for updates">
+          <svg id="updateActionIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+          <span id="updateActionLabel">Check updates</span>
+        </button>
+
+        <a id="installUpdateLink" href="https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js" target="_blank" rel="noopener noreferrer" class="nav-btn is-update-ready is-hidden">
+          <span id="installUpdateLabel">Update script</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+        </a>
+
+        <a href="https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini" target="_blank" rel="noopener noreferrer" class="nav-btn hide-xs">
+          <span>Greasy Fork</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+        </a>
+
+        <button type="button" id="themeToggleBtn" class="nav-btn icon-btn" aria-label="Toggle light or dark theme" aria-pressed="true">
+          <svg id="sunIcon" class="is-hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg id="moonIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content" class="container main">
+    <section class="intro">
+      <div class="intro-top">
+        <h1>Solver Setup</h1>
+        <span id="progressReadout" class="progress-readout">0 / 2 complete</span>
+      </div>
+      <p>Connect a Gemini API key, set a consistent respondent profile, and run automated solving from the floating survey bar</p>
+      <div class="progress-bar-wrap">
+        <div class="progress-track" aria-hidden="true">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <div class="step-chips" aria-hidden="true">
+          <span id="chipStep1" class="step-chip"><span class="step-chip-dot"></span>01 Key</span>
+          <span id="chipStep2" class="step-chip"><span class="step-chip-dot"></span>02 Survey</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="setup-grid">
+      <!-- 01: API KEY -->
+      <section id="step-1" aria-labelledby="step-1-heading" class="panel">
+        <div class="panel-head">
+          <div class="panel-title-group">
+            <span id="cardNum1" class="step-index">01</span>
+            <h2 id="step-1-heading" class="panel-title">Gemini API Key</h2>
+          </div>
+          <span class="meta-caption">Free tier · 14,400 RPD</span>
+        </div>
+
+        <div class="panel-body">
+          <p class="panel-desc">
+            Create a key in <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" class="inline-link">Google AI Studio</a> and store it locally in Tampermonkey storage so script updates keep your key
+          </p>
+
+          <div class="key-box">
+            <div class="key-box-meta">
+              <label for="apiKeyInput" class="key-label">API Key</label>
+              <span id="keyStatusNote" class="key-status" role="status" aria-live="polite">Saved locally via Tampermonkey</span>
+            </div>
+
+            <form id="apiKeyForm" class="key-form" novalidate>
+              <div class="input-wrap">
+                <input
+                  id="apiKeyInput"
+                  name="gemini_api_key"
+                  type="password"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Paste Google AI Studio key"
+                  class="key-input"
+                />
+                <button type="button" id="toggleVisBtn" class="vis-btn" aria-label="Show API key" aria-pressed="false">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+
+              <div class="btn-row">
+                <button type="submit" id="saveKeyBtn" class="btn btn-accent">Save Key</button>
+                <button type="button" id="clearKeyBtn" class="btn btn-danger-ghost is-hidden">Clear</button>
+                <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">
+                  <span>Get Key</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+                </a>
+              </div>
+            </form>
+          </div>
+
+          <details class="manual-details">
+            <summary>
+              <span>Manual setup fallback</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </summary>
+            <div class="manual-body">
+              <div><strong>Tampermonkey Menu:</strong> Extension icon → Universal Survey Solver (Gemini) → Set Gemini API Key</div>
+              <div><strong>Script File:</strong> Set <code>const API_KEY = '...'</code> near line 33 in Tampermonkey Dashboard</div>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <!-- 02: SURVEY SITE -->
+      <section id="step-2" aria-labelledby="step-2-heading" class="panel">
+        <div class="panel-head">
+          <div class="panel-title-group">
+            <span id="cardNum2" class="step-index">02</span>
+            <h2 id="step-2-heading" class="panel-title">Survey Launch</h2>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <div class="launch-stack">
+            <div class="launch-row">
+              <div class="launch-info">
+                <div class="launch-domain">gain.gg/surveys</div>
+                <div class="launch-sub">Open a survey, let it load, then press Auto or Alt+F</div>
+              </div>
+              <a id="launchSiteBtn" href="https://gain.gg/surveys" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+                <span>Open gain.gg</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+              </a>
+            </div>
+
+            <div class="launch-row">
+              <div class="launch-info">
+                <div class="launch-domain">Demo Survey</div>
+                <div class="launch-sub">Test answering and navigation on a 20-section Google Form</div>
+              </div>
+              <a id="launchDemoBtn" href="https://docs.google.com/forms/d/e/1FAIpQLScvNyHDL5u75DLdKF_UMuHVCRGrV1H-IZNE74tbX4l9cUtVyQ/viewform" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">
+                <span>Try Demo</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+              </a>
+            </div>
+
+            <div class="launch-row">
+              <div class="launch-info">
+                <div class="launch-domain">
+                  <span>True Auto</span>
+                  <span id="trueAutoStateBadge" class="meta-tag">OFF</span>
+                </div>
+                <div id="trueAutoNote" class="launch-sub">
+                  Stay paused when returning to PrimeEarn or gain.gg/surveys — enable to auto-pick and launch the next survey
+                </div>
+              </div>
+              <button type="button" id="trueAutoToggle" class="switch-btn" role="switch" aria-checked="false" aria-label="Toggle True Auto offer-wall survey picking">
+                <span class="switch-knob"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 03: PERSONA PROFILE -->
+    <section id="step-profile" aria-labelledby="step-profile-heading" class="panel">
+      <div class="panel-head">
+        <div class="panel-title-group">
+          <span class="step-index">03</span>
+          <h2 id="step-profile-heading" class="panel-title">Persona Profile</h2>
+        </div>
+        <span class="meta-caption">Optional prompt identity</span>
+      </div>
+
+      <div class="panel-body">
+        <p class="panel-desc">
+          Optional demographic details compressed into each prompt so answers remain consistent across multi-domain survey redirects
+        </p>
+
+        <div class="key-box">
+          <div class="key-box-meta">
+            <span class="key-label">Respondent Details</span>
+            <span id="profileStatusNote" class="key-status" role="status" aria-live="polite">Saved locally via Tampermonkey</span>
+          </div>
+
+          <form id="profileForm" novalidate>
+            <div class="profile-grid">
+              <div class="profile-field">
+                <label for="profName">Full Name</label>
+                <input id="profName" type="text" class="profile-input" placeholder="Jordan Ellis" />
+              </div>
+              <div class="profile-field">
+                <label for="profEmail">Email</label>
+                <input id="profEmail" type="email" class="profile-input" placeholder="jordan.ellis89@gmail.com" />
+              </div>
+              <div class="profile-field">
+                <label for="profAge">Age</label>
+                <input id="profAge" type="number" min="18" max="99" class="profile-input" placeholder="34" />
+              </div>
+              <div class="profile-field">
+                <label for="profGender">Gender</label>
+                <select id="profGender" class="profile-input">
+                  <option value="">Auto</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Non-binary">Non-binary</option>
+                </select>
+              </div>
+              <div class="profile-field">
+                <label for="profZip">ZIP Code</label>
+                <input id="profZip" type="text" maxlength="10" class="profile-input" placeholder="60611" />
+              </div>
+              <div class="profile-field">
+                <label for="profLocation">City, State</label>
+                <input id="profLocation" type="text" class="profile-input" placeholder="Chicago, IL" />
+              </div>
+              <div class="profile-field">
+                <label for="profJob">Job / Status</label>
+                <input id="profJob" type="text" class="profile-input" placeholder="Supply chain analyst, full-time" />
+              </div>
+              <div class="profile-field">
+                <label for="profIncome">Household Income</label>
+                <input id="profIncome" type="text" class="profile-input" placeholder="$75,000 - $99,999" />
+              </div>
+              <div class="profile-field">
+                <label for="profHousehold">Kids / Household</label>
+                <input id="profHousehold" type="text" class="profile-input" placeholder="Married, 1 child" />
+              </div>
+              <div class="profile-field">
+                <label for="profPolitics">Political Lean</label>
+                <select id="profPolitics" class="profile-input">
+                  <option value="">Auto</option>
+                  <option value="Moderate">Moderate</option>
+                  <option value="Somewhat liberal">Somewhat liberal</option>
+                  <option value="Somewhat conservative">Somewhat conservative</option>
+                  <option value="Liberal">Liberal</option>
+                  <option value="Conservative">Conservative</option>
+                  <option value="Independent">Independent</option>
+                </select>
+              </div>
+              <div class="profile-field is-span-2">
+                <label for="profNotes">Education, Habits &amp; Notes</label>
+                <input id="profNotes" type="text" class="profile-input" placeholder="B.S. degree, owns townhouse, uses Netflix and YouTube on smart TV" />
+              </div>
+            </div>
+
+            <div class="profile-footer-row">
+              <div id="profilePreview" class="profile-preview" title="Compressed prompt string">No profile set — model chooses naturally</div>
+
+              <div class="btn-row">
+                <button type="submit" id="saveProfileBtn" class="btn btn-accent">Save Profile</button>
+                <button type="button" id="sampleProfileBtn" class="btn btn-ghost">Randomize Sample</button>
+                <button type="button" id="clearProfileBtn" class="btn btn-danger-ghost is-hidden">Clear</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04: HUD & SHORTCUTS -->
+    <section id="step-3" aria-labelledby="step-3-heading" class="panel">
+      <div class="panel-head">
+        <div class="panel-title-group">
+          <span class="step-index">04</span>
+          <h2 id="step-3-heading" class="panel-title">Controls &amp; HUD</h2>
+        </div>
+        <span class="meta-caption">Interactive preview</span>
+      </div>
+
+      <div class="panel-body">
+        <div class="workbench-grid">
+          <div class="hud-stage">
+            <div class="hud-stage-bar">
+              <span class="hud-stage-label">HUD Workbench</span>
+              <button type="button" id="resetHudDemoBtn" class="reset-link">Reset</button>
+            </div>
+
+            <div class="hud-canvas">
+              <div id="demoSurveyCard" class="demo-survey-card" aria-hidden="true">
+                <div class="demo-survey-head">
+                  <span class="demo-survey-q">Which streaming services have you used in the past 30 days</span>
+                  <span id="demoSurveyStep" class="meta-caption">Q4 / 12</span>
+                </div>
+                <div class="demo-survey-opts">
+                  <div class="demo-opt" data-opt="0"><span class="demo-opt-box"></span><span>Netflix</span></div>
+                  <div class="demo-opt" data-opt="1"><span class="demo-opt-box"></span><span>YouTube TV</span></div>
+                  <div class="demo-opt" data-opt="2"><span class="demo-opt-box"></span><span>Hulu</span></div>
+                  <div class="demo-opt" data-opt="3"><span class="demo-opt-box"></span><span>None of these</span></div>
+                </div>
+                <div class="demo-survey-foot">
+                  <span id="demoSurveyMeta">Waiting for input</span>
+                  <span id="demoSurveyNext" class="demo-next-chip">Next</span>
+                </div>
+              </div>
+
+              <div class="hud-dock">
+                <div id="mockHud" class="mock-hud">
+                  <button type="button" id="mockStatusBtn" class="mock-status-btn" aria-pressed="false" title="Drag handle">
+                    <span id="mockDot" class="mock-dot"></span>
+                    <span class="mock-collapsible">
+                      <span id="mockStatusText" class="mock-status-text">Ready</span>
+                    </span>
+                  </button>
+
+                  <span class="mock-collapsible mock-divider" aria-hidden="true"></span>
+
+                  <button type="button" id="mockSolveBtn" class="mock-collapsible mock-pill-btn is-primary" aria-pressed="true">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    <span>Solve</span>
+                  </button>
+
+                  <button type="button" id="mockStopBtn" class="mock-collapsible mock-pill-btn is-stop is-hidden">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                    <span>Stop</span>
+                  </button>
+
+                  <button type="button" id="mockNextBtn" class="mock-collapsible mock-pill-btn" aria-pressed="false" style="margin-left: 2px;">
+                    <span>Next</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                  </button>
+
+                  <button type="button" id="mockAutoBtn" class="mock-collapsible mock-pill-btn" aria-pressed="false" style="margin-left: 2px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                    <span>Auto</span>
+                  </button>
+
+                  <button type="button" id="mockMinBtn" class="mock-pill-icon" aria-label="Minimize or expand preview HUD" aria-pressed="false">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h12"/></svg>
+                  </button>
+                </div>
+
+                <p id="hudCaption" class="hud-caption" aria-live="polite">
+                  <strong>Solve (Alt+A):</strong> Answers unanswered questions on the page, or only your highlighted text
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bind-list" role="list" aria-label="Keyboard shortcuts">
+            <div class="bind-row" role="listitem">
+              <div class="bind-head">
+                <span class="bind-name">Solve</span>
+                <div class="bind-keys"><kbd class="kbd">Alt</kbd><span>+</span><kbd class="kbd">A</kbd></div>
+              </div>
+              <span class="bind-detail">Fills radios, checkboxes, dropdowns, grids, carousels, sliders, and text inputs</span>
+            </div>
+
+            <div class="bind-row" role="listitem">
+              <div class="bind-head">
+                <span class="bind-name">Next</span>
+                <div class="bind-keys"><kbd class="kbd">Alt</kbd><span>+</span><kbd class="kbd">S</kbd></div>
+              </div>
+              <span class="bind-detail">Clicks Next, Continue, or Submit while skipping Back and Cancel</span>
+            </div>
+
+            <div class="bind-row" role="listitem">
+              <div class="bind-head">
+                <span class="bind-name">Auto-Farm</span>
+                <div class="bind-keys"><kbd class="kbd">Alt</kbd><span>+</span><kbd class="kbd">F</kbd></div>
+              </div>
+              <span class="bind-detail">Loops Solve → pause → Next across reloads; halts on CAPTCHAs</span>
+            </div>
+
+            <div class="bind-row" role="listitem">
+              <div class="bind-head">
+                <span class="bind-name">Stop</span>
+                <div class="bind-keys"><kbd class="kbd">Alt</kbd><span>+</span><kbd class="kbd">X</kbd></div>
+              </div>
+              <span class="bind-detail">Cancels active requests, halts typing, and turns Auto-Farm off</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-specs">
+        <span>gemma-4-26b-a4b-it</span>
+        <span aria-hidden="true">·</span>
+        <span>30 RPM</span>
+        <span aria-hidden="true">·</span>
+        <span id="updateStatusText">Greasy Fork #607189</span>
+      </div>
+
+      <div class="footer-links">
+        <a href="https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini" target="_blank" rel="noopener noreferrer" class="footer-link">Greasy Fork</a>
+        <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" class="footer-link">AI Studio</a>
+        <a href="https://gain.gg/surveys" target="_blank" rel="noopener noreferrer" class="footer-link">gain.gg</a>
+        <button type="button" id="footerCheckUpdateBtn" class="footer-link is-hidden">Check updates</button>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const rootEl = document.documentElement;
+      const themeToggleBtn = document.getElementById('themeToggleBtn');
+      const sunIcon = document.getElementById('sunIcon');
+      const moonIcon = document.getElementById('moonIcon');
+
+      const bridgeChip = document.getElementById('bridgeChip');
+      const bridgeText = document.getElementById('bridgeText');
+
+      const apiKeyForm = document.getElementById('apiKeyForm');
+      const apiKeyInput = document.getElementById('apiKeyInput');
+      const toggleVisBtn = document.getElementById('toggleVisBtn');
+      const saveKeyBtn = document.getElementById('saveKeyBtn');
+      const clearKeyBtn = document.getElementById('clearKeyBtn');
+      const keyStatusNote = document.getElementById('keyStatusNote');
+
+      const launchSiteBtn = document.getElementById('launchSiteBtn');
+      const launchDemoBtn = document.getElementById('launchDemoBtn');
+      const trueAutoToggle = document.getElementById('trueAutoToggle');
+      const trueAutoStateBadge = document.getElementById('trueAutoStateBadge');
+      const trueAutoNote = document.getElementById('trueAutoNote');
+      const profileForm = document.getElementById('profileForm');
+      const profileStatusNote = document.getElementById('profileStatusNote');
+      const profilePreview = document.getElementById('profilePreview');
+      const saveProfileBtn = document.getElementById('saveProfileBtn');
+      const sampleProfileBtn = document.getElementById('sampleProfileBtn');
+      const clearProfileBtn = document.getElementById('clearProfileBtn');
+      const profileFields = {
+        name: document.getElementById('profName'),
+        email: document.getElementById('profEmail'),
+        age: document.getElementById('profAge'),
+        gender: document.getElementById('profGender'),
+        zip: document.getElementById('profZip'),
+        location: document.getElementById('profLocation'),
+        job: document.getElementById('profJob'),
+        income: document.getElementById('profIncome'),
+        household: document.getElementById('profHousehold'),
+        politics: document.getElementById('profPolitics'),
+        notes: document.getElementById('profNotes')
+      };
+      const updateActionBtn = document.getElementById('updateActionBtn');
+      const updateActionIcon = document.getElementById('updateActionIcon');
+      const updateActionLabel = document.getElementById('updateActionLabel');
+      const installUpdateLink = document.getElementById('installUpdateLink');
+      const installUpdateLabel = document.getElementById('installUpdateLabel');
+      const footerCheckUpdateBtn = document.getElementById('footerCheckUpdateBtn');
+      const updateStatusText = document.getElementById('updateStatusText');
+
+      const cardNum1 = document.getElementById('cardNum1');
+      const cardNum2 = document.getElementById('cardNum2');
+      const chipStep1 = document.getElementById('chipStep1');
+      const chipStep2 = document.getElementById('chipStep2');
+      const progressReadout = document.getElementById('progressReadout');
+      const progressFill = document.getElementById('progressFill');
+
+      const mockHud = document.getElementById('mockHud');
+      const mockDot = document.getElementById('mockDot');
+      const mockStatusText = document.getElementById('mockStatusText');
+      const mockSolveBtn = document.getElementById('mockSolveBtn');
+      const mockStopBtn = document.getElementById('mockStopBtn');
+      const mockNextBtn = document.getElementById('mockNextBtn');
+      const mockAutoBtn = document.getElementById('mockAutoBtn');
+      const mockMinBtn = document.getElementById('mockMinBtn');
+      const mockStatusBtn = document.getElementById('mockStatusBtn');
+      const resetHudDemoBtn = document.getElementById('resetHudDemoBtn');
+      const hudCaption = document.getElementById('hudCaption');
+      const demoOpts = Array.from(document.querySelectorAll('#demoSurveyCard .demo-opt'));
+      const demoSurveyMeta = document.getElementById('demoSurveyMeta');
+      const demoSurveyNext = document.getElementById('demoSurveyNext');
+
+      const CHECK_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+
+      let bridgeConnected = false;
+      let step1Done = false;
+      let step2Done = false;
+      let mockMinimized = false;
+
+      // Theme
+      function syncThemeIcons() {
+        const isDark = rootEl.classList.contains('dark');
+        rootEl.style.colorScheme = isDark ? 'dark' : 'light';
+        themeToggleBtn.setAttribute('aria-pressed', String(isDark));
+        sunIcon.classList.toggle('is-hidden', !isDark);
+        moonIcon.classList.toggle('is-hidden', isDark);
+      }
+      syncThemeIcons();
+
+      themeToggleBtn.addEventListener('click', () => {
+        const nextDark = !rootEl.classList.contains('dark');
+        rootEl.classList.toggle('dark', nextDark);
+        try { localStorage.setItem('gt_welcome_theme', nextDark ? 'dark' : 'light'); } catch (e) {}
+        syncThemeIcons();
+      });
+
+      // Step Progress
+      function setStepBadge(el, done, numText) {
+        if (done) {
+          el.innerHTML = CHECK_ICON_SVG;
+        } else {
+          el.textContent = numText;
+        }
+        el.classList.toggle('is-done', done);
+      }
+
+      function updateProgress() {
+        const doneCount = (step1Done ? 1 : 0) + (step2Done ? 1 : 0);
+        progressFill.style.width = `${(doneCount / 2) * 100}%`;
+        progressReadout.textContent = doneCount === 2 ? 'Setup complete' : `${doneCount} / 2 complete`;
+
+        setStepBadge(cardNum1, step1Done, '01');
+        chipStep1.classList.toggle('is-done', step1Done);
+
+        setStepBadge(cardNum2, step2Done, '02');
+        chipStep2.classList.toggle('is-done', step2Done);
+      }
+
+      // Interactive HUD Workbench
+      function updateDemoSurveyPreview(pickedIndices, metaText, lightNext) {
+        demoOpts.forEach((opt, idx) => {
+          opt.classList.toggle('is-picked', pickedIndices.includes(idx));
+        });
+        if (demoSurveyMeta) demoSurveyMeta.textContent = metaText;
+        if (demoSurveyNext) demoSurveyNext.classList.toggle('is-lit', Boolean(lightNext));
+      }
+
+      function setMockState(mode) {
+        mockMinimized = mode === 'minimize' ? !mockMinimized : false;
+        mockHud.classList.toggle('is-minimized', mockMinimized);
+        mockMinBtn.setAttribute('aria-pressed', String(mockMinimized));
+
+        if (mockMinimized) {
+          mockDot.className = 'mock-dot';
+          hudCaption.innerHTML = '<strong>Minimized:</strong> Collapses to a corner dot; click again to expand';
+          return;
+        }
+
+        mockSolveBtn.classList.remove('is-hidden');
+        mockStopBtn.classList.add('is-hidden');
+        mockAutoBtn.classList.remove('is-auto-on');
+        [mockStatusBtn, mockSolveBtn, mockNextBtn, mockAutoBtn].forEach((b) => b.setAttribute('aria-pressed', 'false'));
+
+        if (mode === 'status') {
+          mockStatusBtn.setAttribute('aria-pressed', 'true');
+          mockDot.className = 'mock-dot';
+          mockStatusText.textContent = 'Ready';
+          updateDemoSurveyPreview([], 'Drag handle active', false);
+          hudCaption.innerHTML = '<strong>Drag Handle:</strong> Drag anywhere on page; green = ready, amber = solving, red = paused';
+        } else if (mode === 'solve') {
+          mockSolveBtn.setAttribute('aria-pressed', 'true');
+          mockDot.className = 'mock-dot is-working';
+          mockStatusText.textContent = 'Solving…';
+          updateDemoSurveyPreview([0, 1], 'Selected 2 persona-matched choices', false);
+          hudCaption.innerHTML = '<strong>Solve (Alt+A):</strong> Answers unanswered questions on the page, or only your highlighted text';
+        } else if (mode === 'next') {
+          mockNextBtn.setAttribute('aria-pressed', 'true');
+          mockDot.className = 'mock-dot';
+          mockStatusText.textContent = 'Clicked: Next';
+          updateDemoSurveyPreview([0, 1], 'Advancing to next page', true);
+          hudCaption.innerHTML = '<strong>Next (Alt+S):</strong> Clicks Next, Continue, or Submit (including <code>Continue »</code>) while skipping Back';
+        } else if (mode === 'auto') {
+          mockAutoBtn.setAttribute('aria-pressed', 'true');
+          mockSolveBtn.classList.add('is-hidden');
+          mockStopBtn.classList.remove('is-hidden');
+          mockAutoBtn.classList.add('is-auto-on');
+          mockDot.className = 'mock-dot is-farming';
+          mockStatusText.textContent = 'Auto-Farm';
+          updateDemoSurveyPreview([0, 1], 'Solving → pause → Next', true);
+          hudCaption.innerHTML = '<strong>Auto-Farm (Alt+F):</strong> Loops Solve → pause → Next across reloads; press <strong>Alt+X</strong> to stop';
+        } else if (mode === 'stop') {
+          mockDot.className = 'mock-dot is-error';
+          mockStatusText.textContent = 'Stopped';
+          updateDemoSurveyPreview([], 'Paused by user', false);
+          hudCaption.innerHTML = '<strong>Stop (Alt+X):</strong> Aborts active requests, halts typing, and turns Auto-Farm off';
+        } else {
+          mockDot.className = 'mock-dot';
+          mockStatusText.textContent = 'Ready';
+          updateDemoSurveyPreview([], 'Waiting for input', false);
+          hudCaption.innerHTML = '<strong>Solve (Alt+A):</strong> Answers unanswered questions on the page, or only your highlighted text';
+        }
+      }
+
+      mockStatusBtn.addEventListener('click', () => setMockState('status'));
+      mockSolveBtn.addEventListener('click', () => setMockState('solve'));
+      mockNextBtn.addEventListener('click', () => setMockState('next'));
+      mockAutoBtn.addEventListener('click', () => setMockState('auto'));
+      mockStopBtn.addEventListener('click', () => setMockState('stop'));
+      mockMinBtn.addEventListener('click', () => setMockState('minimize'));
+      resetHudDemoBtn.addEventListener('click', () => setMockState('ready'));
+
+      // API Key Form
+      toggleVisBtn.addEventListener('click', () => {
+        const show = apiKeyInput.type === 'password';
+        apiKeyInput.type = show ? 'text' : 'password';
+        toggleVisBtn.setAttribute('aria-pressed', String(show));
+        toggleVisBtn.setAttribute('aria-label', show ? 'Hide API key' : 'Show API key');
+      });
+
+      function setKeyMessage(text, tone) {
+        keyStatusNote.textContent = text;
+        keyStatusNote.className = tone === 'ok'
+          ? 'key-status is-ok'
+          : tone === 'err'
+            ? 'key-status is-err'
+            : 'key-status';
+      }
+
+      apiKeyForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const raw = apiKeyInput.value.trim();
+        if (!raw || raw.length < 15) {
+          setKeyMessage('Paste a valid Google AI Studio key first', 'err');
+          apiKeyInput.focus();
+          return;
+        }
+        if (bridgeConnected) {
+          window.dispatchEvent(new CustomEvent('gt:save-api-key', { detail: { apiKey: raw } }));
+        } else {
+          setKeyMessage('Script not detected — reload or use the Tampermonkey menu', 'err');
+        }
+      });
+
+      clearKeyBtn.addEventListener('click', () => {
+        if (!bridgeConnected) return;
+        window.dispatchEvent(new CustomEvent('gt:clear-api-key'));
+        step1Done = false;
+        apiKeyInput.value = '';
+        apiKeyInput.placeholder = 'Paste Google AI Studio key';
+        clearKeyBtn.classList.add('is-hidden');
+        setKeyMessage('Saved key cleared', 'neutral');
+        updateProgress();
+      });
+
+      launchSiteBtn.addEventListener('click', () => {
+        step2Done = true;
+        updateProgress();
+      });
+
+      if (launchDemoBtn) {
+        launchDemoBtn.addEventListener('click', () => {
+          step2Done = true;
+          updateProgress();
+        });
+      }
+
+      const TRUE_AUTO_LS_KEY = 'gt_welcome_true_auto_v1';
+      function renderTrueAutoUI(enabled, noteSuffix = '') {
+        const on = Boolean(enabled);
+        if (trueAutoToggle) trueAutoToggle.setAttribute('aria-checked', String(on));
+        if (trueAutoStateBadge) {
+          trueAutoStateBadge.textContent = on ? 'ON' : 'OFF';
+          trueAutoStateBadge.style.color = on ? 'var(--accent-text)' : '';
+          trueAutoStateBadge.style.borderColor = on ? 'var(--accent-border)' : '';
+          trueAutoStateBadge.style.backgroundColor = on ? 'var(--accent-soft)' : '';
+        }
+        if (noteSuffix && trueAutoNote) {
+          trueAutoNote.textContent = on
+            ? `True Auto ON (${noteSuffix}) — returning to PrimeEarn or gain.gg/surveys will automatically pick and start the next survey`
+            : `True Auto OFF (${noteSuffix}) — returning to PrimeEarn or gain.gg/surveys stops safely without picking another survey`;
+        }
+      }
+      try {
+        renderTrueAutoUI(localStorage.getItem(TRUE_AUTO_LS_KEY) === '1');
+      } catch (err) {}
+
+      if (trueAutoToggle) {
+        trueAutoToggle.addEventListener('click', () => {
+          const next = trueAutoToggle.getAttribute('aria-checked') !== 'true';
+          try { localStorage.setItem(TRUE_AUTO_LS_KEY, next ? '1' : '0'); } catch (err) {}
+          renderTrueAutoUI(next, bridgeConnected ? 'syncing…' : 'saved in browser');
+          if (bridgeConnected) {
+            window.dispatchEvent(new CustomEvent('gt:set-true-auto', { detail: { enabled: next } }));
+          }
+        });
+      }
+
+      // Persona Profile Form
+      const PROFILE_LS_KEY = 'gt_welcome_profile_v1';
+      const SAMPLE_PERSONAS = [
+        { name: 'Jordan Ellis', email: 'jordan.ellis89@gmail.com', age: '36', gender: 'Male', zip: '60611', location: 'Chicago, IL', job: 'Supply chain analyst, full-time', income: '$75,000 - $99,999', household: 'Married, 1 child', politics: 'Moderate', notes: 'B.S. business, owns townhouse, uses Netflix and YouTube on smart TV' },
+        { name: 'Maya Patel', email: 'maya.patel94@gmail.com', age: '31', gender: 'Female', zip: '78704', location: 'Austin, TX', job: 'UX researcher, full-time', income: '$100,000 - $149,999', household: 'Partnered, no children', politics: 'Somewhat liberal', notes: 'M.S. HCI, rents apartment, watches Hulu/Max on Apple TV' },
+        { name: 'Devon Brooks', email: 'dbrooks.work@yahoo.com', age: '44', gender: 'Male', zip: '43215', location: 'Columbus, OH', job: 'Operations supervisor, full-time', income: '$75,000 - $99,999', household: 'Married, 2 children', politics: 'Somewhat conservative', notes: 'Associate degree, drives SUV, watches YouTube TV and Prime Video' },
+        { name: 'Elena Morales', email: 'elena.m78@gmail.com', age: '28', gender: 'Female', zip: '98101', location: 'Seattle, WA', job: 'Registered nurse, full-time', income: '$50,000 - $74,999', household: 'Single, no children', politics: 'Independent', notes: 'B.S.N., shares apartment, listens to Spotify and streams Roku' }
+      ];
+
+      function setProfileMessage(text, tone) {
+        profileStatusNote.textContent = text;
+        profileStatusNote.className = tone === 'ok'
+          ? 'key-status is-ok'
+          : tone === 'err'
+            ? 'key-status is-err'
+            : 'key-status';
+      }
+
+      function readProfileForm() {
+        const out = {};
+        for (const [k, el] of Object.entries(profileFields)) {
+          out[k] = String(el?.value || '').trim();
+        }
+        return out;
+      }
+
+      function compressProfileObj(p) {
+        const parts = [];
+        if (p.name) parts.push(p.name);
+        if (p.age) parts.push(`${p.age}yo`);
+        if (p.gender) parts.push(p.gender);
+        if (p.zip || p.location) parts.push([p.zip, p.location].filter(Boolean).join(' '));
+        if (p.job) parts.push(p.job);
+        if (p.income) parts.push(p.income);
+        if (p.household) parts.push(p.household);
+        if (p.politics) parts.push(p.politics);
+        if (p.email) parts.push(p.email);
+        if (p.notes) parts.push(p.notes);
+        return parts.join(' | ');
+      }
+
+      function syncProfilePreview(p = readProfileForm()) {
+        const compact = compressProfileObj(p);
+        profilePreview.textContent = compact || 'No profile set — model chooses naturally';
+        clearProfileBtn.classList.toggle('is-hidden', !compact);
+        return compact;
+      }
+
+      function fillProfileForm(p) {
+        if (!p || typeof p !== 'object') return;
+        for (const [k, el] of Object.entries(profileFields)) {
+          if (el) el.value = p[k] ? String(p[k]) : '';
+        }
+        syncProfilePreview(p);
+      }
+
+      try {
+        const cachedProf = JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || 'null');
+        if (cachedProf) fillProfileForm(cachedProf);
+      } catch (e) {}
+
+      Object.values(profileFields).forEach((el) => {
+        if (!el) return;
+        el.addEventListener('input', () => syncProfilePreview());
+        el.addEventListener('change', () => syncProfilePreview());
+      });
+
+      sampleProfileBtn.addEventListener('click', () => {
+        const pick = SAMPLE_PERSONAS[Math.floor(Math.random() * SAMPLE_PERSONAS.length)];
+        fillProfileForm(pick);
+        setProfileMessage('Sample filled — click Save Profile', 'neutral');
+      });
+
+      profileForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = readProfileForm();
+        const compact = syncProfilePreview(data);
+        try { localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(data)); } catch (err) {}
+        if (bridgeConnected) {
+          window.dispatchEvent(new CustomEvent('gt:save-profile', { detail: { profile: data } }));
+        } else {
+          setProfileMessage(compact ? 'Saved in browser (connect script to sync)' : 'Cleared', compact ? 'ok' : 'neutral');
+        }
+      });
+
+      clearProfileBtn.addEventListener('click', () => {
+        fillProfileForm({});
+        try { localStorage.removeItem(PROFILE_LS_KEY); } catch (err) {}
+        if (bridgeConnected) {
+          window.dispatchEvent(new CustomEvent('gt:clear-profile'));
+        }
+        setProfileMessage('Profile cleared', 'neutral');
+      });
+
+      // Userscript Bridge
+      let updateResetTimer = null;
+      let installedScriptVersion = '';
+      const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
+      const GREASYFORK_USERJS_FALLBACK = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
+
+      function compareSemver(a, b) {
+        const pa = String(a || '0').replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+        const pb = String(b || '0').replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+        const len = Math.max(pa.length, pb.length);
+        for (let i = 0; i < len; i++) {
+          const da = pa[i] || 0;
+          const db = pb[i] || 0;
+          if (da > db) return 1;
+          if (da < db) return -1;
+        }
+        return 0;
+      }
+
+      function applyUpdateState(d) {
+        if (!d) return;
+        clearTimeout(updateResetTimer);
+        if (d.checking) {
+          updateActionIcon.classList.add('is-spinning');
+          updateActionLabel.textContent = 'Checking…';
+          updateActionBtn.classList.remove('is-hidden');
+          installUpdateLink.classList.add('is-hidden');
+          return;
+        }
+
+        updateActionIcon.classList.remove('is-spinning');
+
+        if (d.error) {
+          updateActionLabel.textContent = 'Check updates';
+          updateActionBtn.classList.remove('is-hidden');
+          installUpdateLink.classList.add('is-hidden');
+          updateStatusText.textContent = `Check failed (${d.error})`;
+          updateStatusText.classList.remove('update-badge');
+          return;
+        }
+
+        if (d.hasUpdate && d.remoteVersion) {
+          installUpdateLink.href = d.installUrl || GREASYFORK_USERJS_FALLBACK;
+          installUpdateLabel.textContent = `Update to v${d.remoteVersion}`;
+          installUpdateLink.classList.remove('is-hidden');
+          updateActionBtn.classList.add('is-hidden');
+          updateStatusText.textContent = `v${d.remoteVersion} available`;
+          updateStatusText.classList.add('update-badge');
+        } else if (d.currentVersion) {
+          installUpdateLink.classList.add('is-hidden');
+          updateActionBtn.classList.remove('is-hidden');
+          updateActionLabel.textContent = d.manualResult ? 'Up to date' : 'Check updates';
+          updateStatusText.textContent = `v${d.currentVersion} (latest)`;
+          updateStatusText.classList.remove('update-badge');
+          if (d.manualResult) {
+            updateResetTimer = setTimeout(() => {
+              updateActionLabel.textContent = 'Check updates';
+            }, 3500);
+          }
+        }
+      }
+
+      window.addEventListener('gt:bridge-status', (e) => {
+        const detail = e.detail || {};
+        if (!detail.installed) return;
+        bridgeConnected = true;
+        installedScriptVersion = String(detail.version || '1.1.0');
+
+        bridgeChip.classList.add('is-connected');
+        bridgeText.textContent = `Connected · v${installedScriptVersion}`;
+        updateActionBtn.classList.remove('is-hidden');
+        footerCheckUpdateBtn.classList.remove('is-hidden');
+
+        applyUpdateState({
+          currentVersion: installedScriptVersion,
+          remoteVersion: detail.remoteVersion,
+          hasUpdate: detail.hasUpdate,
+          installUrl: detail.installUrl
+        });
+        if (!detail.hasUpdate) {
+          checkRemoteMetaDirectly(false);
+        }
+
+        if (detail.hasSavedKey) {
+          step1Done = true;
+          clearKeyBtn.classList.remove('is-hidden');
+          apiKeyInput.placeholder = `Saved: ${detail.maskedKey} (paste to replace)`;
+          setKeyMessage(`Saved (${detail.maskedKey})`, 'ok');
+        } else {
+          step1Done = false;
+          clearKeyBtn.classList.add('is-hidden');
+        }
+        if (detail.profile && typeof detail.profile === 'object' && Object.values(detail.profile).some(Boolean)) {
+          fillProfileForm(detail.profile);
+          try { localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(detail.profile)); } catch (err) {}
+          setProfileMessage('Synced with script', 'ok');
+        }
+        if (typeof detail.trueAuto === 'boolean') {
+          renderTrueAutoUI(detail.trueAuto, 'synced with script');
+        }
+        updateProgress();
+      });
+
+      window.addEventListener('gt:true-auto-saved', (e) => {
+        const d = e.detail || {};
+        if (d.ok) renderTrueAutoUI(Boolean(d.enabled), 'synced with script');
+      });
+
+      window.addEventListener('gt:profile-saved', (e) => {
+        const d = e.detail || {};
+        if (d.ok) {
+          setProfileMessage(d.compressed ? 'Synced with script' : 'Profile cleared', d.compressed ? 'ok' : 'neutral');
+          saveProfileBtn.textContent = 'Saved';
+          setTimeout(() => { saveProfileBtn.textContent = 'Save Profile'; }, 1800);
+        }
+      });
+
+      window.addEventListener('gt:key-saved', (e) => {
+        const detail = e.detail || {};
+        if (detail.ok) {
+          step1Done = true;
+          apiKeyInput.value = '';
+          setKeyMessage(`Saved (${detail.maskedKey})`, 'ok');
+          saveKeyBtn.textContent = 'Saved';
+          setTimeout(() => { saveKeyBtn.textContent = 'Save Key'; }, 1800);
+          updateProgress();
+        } else {
+          setKeyMessage(detail.message || 'Invalid API key', 'err');
+        }
+      });
+
+      window.addEventListener('gt:update-status', (e) => {
+        const d = e.detail || {};
+        if (d.currentVersion) installedScriptVersion = String(d.currentVersion);
+        if (d.hasUpdate) {
+          applyUpdateState(d);
+        }
+      });
+
+      async function checkRemoteMetaDirectly(isManual) {
+        try {
+          const res = await fetch(`${GREASYFORK_META_URL}?_=${Date.now()}`, { cache: 'no-store' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const text = await res.text();
+          const m = text.match(/\/\/\s*@version\s+([^\s]+)/i);
+          const remoteVersion = m ? m[1].trim() : '';
+          if (!remoteVersion) throw new Error('Missing version');
+          const cur = installedScriptVersion || '0';
+          const hasUpdate = installedScriptVersion ? compareSemver(remoteVersion, cur) > 0 : false;
+          applyUpdateState({
+            checking: false,
+            currentVersion: cur,
+            remoteVersion,
+            hasUpdate,
+            installUrl: GREASYFORK_USERJS_FALLBACK,
+            manualResult: isManual && !hasUpdate
+          });
+        } catch (err) {
+          if (isManual) {
+            applyUpdateState({ checking: false, error: err?.message || 'Network error' });
+          }
+        }
+      }
+
+      function triggerUpdateCheck() {
+        applyUpdateState({ checking: true });
+        window.dispatchEvent(new CustomEvent('gt:check-update'));
+        checkRemoteMetaDirectly(true);
+      }
+      updateActionBtn.addEventListener('click', triggerUpdateCheck);
+      footerCheckUpdateBtn.addEventListener('click', triggerUpdateCheck);
+
+      window.dispatchEvent(new CustomEvent('gt:request-status'));
+      setTimeout(() => window.dispatchEvent(new CustomEvent('gt:request-status')), 550);
+      updateProgress();
+    })();
+  </script>
+</body>
+</html>
