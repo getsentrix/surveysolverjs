@@ -1451,7 +1451,7 @@
       <p>Paste a free Google Gemini key, open any survey, and press <strong>Auto</strong> on the floating bar. That's all you need.</p>
     </section>
 
-    <!-- Simple 2-Step Checklist Bar -->
+    <!-- Simple 3-Step Checklist Bar -->
     <div class="progress-card" aria-label="Setup progress">
       <div class="progress-steps">
         <a href="#step-1" id="chipStep1" class="p-step">
@@ -1460,6 +1460,10 @@
         </a>
         <a href="#step-2" id="chipStep2" class="p-step">
           <span id="dotStep2" class="p-dot">2</span>
+          <span>Save survey profile</span>
+        </a>
+        <a href="#step-3" id="chipStep3" class="p-step">
+          <span id="dotStep3" class="p-dot">3</span>
           <span>Open a survey</span>
         </a>
       </div>
@@ -1467,7 +1471,7 @@
         <div class="progress-track" aria-hidden="true">
           <div id="progressFill" class="progress-fill"></div>
         </div>
-        <span id="progressReadout" class="progress-label">0 / 2 done</span>
+        <span id="progressReadout" class="progress-label">0 / 3 done</span>
       </div>
     </div>
 
@@ -1553,13 +1557,104 @@
       </details>
     </section>
 
-    <!-- STEP 2: LAUNCH A SURVEY -->
+    <!-- STEP 2: SAVED PROFILE -->
     <section id="step-2" aria-labelledby="step-2-heading" class="card">
       <div class="card-header">
         <div class="card-title-row">
           <span id="cardNum2" class="step-badge">2</span>
           <div>
-            <h2 id="step-2-heading">Try it on a survey</h2>
+            <h2 id="step-2-heading">Save your survey profile</h2>
+            <p id="profileSummarySub" class="card-subtitle">Save an age, ZIP code, and job so your answers stay 100% consistent across questions.</p>
+          </div>
+        </div>
+        <span id="profileSummaryBadge" class="soft-badge is-neutral">Step 2</span>
+      </div>
+
+      <div class="field-box">
+        <div class="field-top">
+          <span class="field-label">Fill in whatever you want (or click Fill Sample)</span>
+          <span id="profileStatusNote" class="field-status" role="status" aria-live="polite">Saved locally on your browser</span>
+        </div>
+
+        <form id="profileForm" novalidate>
+          <div class="profile-grid">
+            <div class="profile-field">
+              <label for="profName">Full Name</label>
+              <input id="profName" type="text" class="input" placeholder="Jordan Ellis" />
+            </div>
+            <div class="profile-field">
+              <label for="profEmail">Email</label>
+              <input id="profEmail" type="email" class="input" placeholder="jordan.ellis89@gmail.com" />
+            </div>
+            <div class="profile-field">
+              <label for="profAge">Age</label>
+              <input id="profAge" type="number" min="18" max="99" class="input" placeholder="34" />
+            </div>
+            <div class="profile-field">
+              <label for="profGender">Gender</label>
+              <select id="profGender" class="input">
+                <option value="">Auto</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Non-binary">Non-binary</option>
+              </select>
+            </div>
+            <div class="profile-field">
+              <label for="profZip">ZIP Code</label>
+              <input id="profZip" type="text" maxlength="10" class="input" placeholder="60611" />
+            </div>
+            <div class="profile-field">
+              <label for="profLocation">City, State</label>
+              <input id="profLocation" type="text" class="input" placeholder="Chicago, IL" />
+            </div>
+            <div class="profile-field">
+              <label for="profJob">Job / Status</label>
+              <input id="profJob" type="text" class="input" placeholder="Supply chain analyst, full-time" />
+            </div>
+            <div class="profile-field">
+              <label for="profIncome">Household Income</label>
+              <input id="profIncome" type="text" class="input" placeholder="$75,000 - $99,999" />
+            </div>
+            <div class="profile-field">
+              <label for="profHousehold">Household &amp; Kids</label>
+              <input id="profHousehold" type="text" class="input" placeholder="Married, 1 child" />
+            </div>
+            <div class="profile-field">
+              <label for="profPolitics">Political Lean</label>
+              <select id="profPolitics" class="input">
+                <option value="">Auto</option>
+                <option value="Moderate">Moderate</option>
+                <option value="Somewhat liberal">Somewhat liberal</option>
+                <option value="Somewhat conservative">Somewhat conservative</option>
+                <option value="Liberal">Liberal</option>
+                <option value="Conservative">Conservative</option>
+                <option value="Independent">Independent</option>
+              </select>
+            </div>
+            <div class="profile-field is-full">
+              <label for="profNotes">Extra Notes (Education, Streaming, Car, etc.)</label>
+              <input id="profNotes" type="text" class="input" placeholder="B.S. degree, owns townhouse, uses Netflix and YouTube on smart TV" />
+            </div>
+          </div>
+
+          <div class="profile-actions" style="margin-top: 16px;">
+            <div class="btn-group">
+              <button type="submit" id="saveProfileBtn" class="btn btn-sm btn-accent">Save Profile</button>
+              <button type="button" id="sampleProfileBtn" class="btn btn-sm btn-outline">Fill Sample</button>
+              <button type="button" id="clearProfileBtn" class="btn btn-sm btn-danger-outline is-hidden">Clear</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- STEP 3: LAUNCH A SURVEY -->
+    <section id="step-3" aria-labelledby="step-3-heading" class="card">
+      <div class="card-header">
+        <div class="card-title-row">
+          <span id="cardNum3" class="step-badge">3</span>
+          <div>
+            <h2 id="step-3-heading">Try it on a survey</h2>
             <p class="card-subtitle">Once a survey opens, look for the small dark bar in the bottom-right corner and click <strong>Auto</strong> (or press <kbd class="kbd">Alt</kbd> + <kbd class="kbd">F</kbd>).</p>
           </div>
         </div>
@@ -1592,13 +1687,13 @@
       </div>
     </section>
 
-    <!-- STEP 3: MEET THE FLOATING BAR -->
-    <section id="step-3" aria-labelledby="step-3-heading" class="card">
+    <!-- STEP 4: MEET THE FLOATING BAR -->
+    <section id="step-4" aria-labelledby="step-4-heading" class="card">
       <div class="card-header">
         <div class="card-title-row">
-          <span class="step-badge">3</span>
+          <span class="step-badge">4</span>
           <div>
-            <h2 id="step-3-heading">How the floating bar works</h2>
+            <h2 id="step-4-heading">How the floating bar works</h2>
             <p class="card-subtitle">This bar sits in the bottom-right corner of every survey page.</p>
           </div>
         </div>
@@ -1717,99 +1812,6 @@
     <!-- OPTIONAL SETTINGS -->
     <div class="section-divider">Optional Settings</div>
 
-    <!-- Saved Profile -->
-    <details id="step-profile" class="optional-card">
-      <summary class="optional-summary">
-        <div class="optional-summary-left">
-          <div class="optional-title-line">
-            <h2 class="optional-title">Saved Profile</h2>
-            <span id="profileSummaryBadge" class="soft-badge is-neutral">Optional</span>
-          </div>
-          <span id="profileSummarySub" class="optional-sub">Save an age, ZIP code, and job so your answers never contradict each other.</span>
-        </div>
-        <div class="optional-summary-right">
-          <svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-      </summary>
-
-      <div class="optional-content">
-        <div class="field-top">
-          <span class="field-label">Fill in whatever you want (or click Fill Sample)</span>
-          <span id="profileStatusNote" class="field-status" role="status" aria-live="polite">Saved locally on your browser</span>
-        </div>
-
-        <form id="profileForm" novalidate>
-          <div class="profile-grid">
-            <div class="profile-field">
-              <label for="profName">Full Name</label>
-              <input id="profName" type="text" class="input" placeholder="Jordan Ellis" />
-            </div>
-            <div class="profile-field">
-              <label for="profEmail">Email</label>
-              <input id="profEmail" type="email" class="input" placeholder="jordan.ellis89@gmail.com" />
-            </div>
-            <div class="profile-field">
-              <label for="profAge">Age</label>
-              <input id="profAge" type="number" min="18" max="99" class="input" placeholder="34" />
-            </div>
-            <div class="profile-field">
-              <label for="profGender">Gender</label>
-              <select id="profGender" class="input">
-                <option value="">Auto</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Non-binary">Non-binary</option>
-              </select>
-            </div>
-            <div class="profile-field">
-              <label for="profZip">ZIP Code</label>
-              <input id="profZip" type="text" maxlength="10" class="input" placeholder="60611" />
-            </div>
-            <div class="profile-field">
-              <label for="profLocation">City, State</label>
-              <input id="profLocation" type="text" class="input" placeholder="Chicago, IL" />
-            </div>
-            <div class="profile-field">
-              <label for="profJob">Job / Status</label>
-              <input id="profJob" type="text" class="input" placeholder="Supply chain analyst, full-time" />
-            </div>
-            <div class="profile-field">
-              <label for="profIncome">Household Income</label>
-              <input id="profIncome" type="text" class="input" placeholder="$75,000 - $99,999" />
-            </div>
-            <div class="profile-field">
-              <label for="profHousehold">Household &amp; Kids</label>
-              <input id="profHousehold" type="text" class="input" placeholder="Married, 1 child" />
-            </div>
-            <div class="profile-field">
-              <label for="profPolitics">Political Lean</label>
-              <select id="profPolitics" class="input">
-                <option value="">Auto</option>
-                <option value="Moderate">Moderate</option>
-                <option value="Somewhat liberal">Somewhat liberal</option>
-                <option value="Somewhat conservative">Somewhat conservative</option>
-                <option value="Liberal">Liberal</option>
-                <option value="Conservative">Conservative</option>
-                <option value="Independent">Independent</option>
-              </select>
-            </div>
-            <div class="profile-field is-full">
-              <label for="profNotes">Extra Notes (Education, Streaming, Car, etc.)</label>
-              <input id="profNotes" type="text" class="input" placeholder="B.S. degree, owns townhouse, uses Netflix and YouTube on smart TV" />
-            </div>
-          </div>
-
-          <div class="profile-actions" style="margin-top: 16px;">
-            <div class="btn-group">
-              <button type="submit" id="saveProfileBtn" class="btn btn-sm btn-accent">Save Profile</button>
-              <button type="button" id="sampleProfileBtn" class="btn btn-sm btn-outline">Fill Sample</button>
-              <button type="button" id="clearProfileBtn" class="btn btn-sm btn-danger-outline is-hidden">Clear</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </details>
-
     <!-- True Auto Toggle Card -->
     <div class="toggle-card">
       <div class="optional-summary-left">
@@ -1877,7 +1879,7 @@
       let cachedSelfHealLogText = '';
       let cachedSelfHealLogCount = 0;
 
-      const profileDetails = document.getElementById('step-profile');
+      const profileDetails = document.getElementById('step-2');
       const profileSummaryBadge = document.getElementById('profileSummaryBadge');
       const profileSummarySub = document.getElementById('profileSummarySub');
       const profileForm = document.getElementById('profileForm');
@@ -1909,10 +1911,13 @@
 
       const cardNum1 = document.getElementById('cardNum1');
       const cardNum2 = document.getElementById('cardNum2');
+      const cardNum3 = document.getElementById('cardNum3');
       const chipStep1 = document.getElementById('chipStep1');
       const chipStep2 = document.getElementById('chipStep2');
+      const chipStep3 = document.getElementById('chipStep3');
       const dotStep1 = document.getElementById('dotStep1');
       const dotStep2 = document.getElementById('dotStep2');
+      const dotStep3 = document.getElementById('dotStep3');
       const progressReadout = document.getElementById('progressReadout');
       const progressFill = document.getElementById('progressFill');
 
@@ -1922,11 +1927,11 @@
       let bridgeConnected = false;
       let step1Done = false;
       let step2Done = false;
+      let step3Done = false;
 
-      // Auto-expand Saved Profile when opened via Tampermonkey menu (#step-profile)
+      // Scroll to profile step when opened with #step-profile or #step-2
       function checkHashOpen() {
-        if (location.hash === '#step-profile' && profileDetails) {
-          profileDetails.open = true;
+        if ((location.hash === '#step-profile' || location.hash === '#step-2') && profileDetails) {
           setTimeout(() => profileDetails.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
         }
       }
@@ -1952,9 +1957,9 @@
 
       // Step Progress
       function updateProgress() {
-        const doneCount = (step1Done ? 1 : 0) + (step2Done ? 1 : 0);
-        progressFill.style.width = `${(doneCount / 2) * 100}%`;
-        progressReadout.textContent = doneCount === 2 ? 'All set!' : `${doneCount} / 2 done`;
+        const doneCount = (step1Done ? 1 : 0) + (step2Done ? 1 : 0) + (step3Done ? 1 : 0);
+        progressFill.style.width = `${(doneCount / 3) * 100}%`;
+        progressReadout.textContent = doneCount === 3 ? 'All set!' : `${doneCount} / 3 done`;
 
         cardNum1.innerHTML = step1Done ? CHECK_SVG : '1';
         cardNum1.classList.toggle('is-done', step1Done);
@@ -1965,6 +1970,11 @@
         cardNum2.classList.toggle('is-done', step2Done);
         dotStep2.innerHTML = step2Done ? MINI_CHECK_SVG : '2';
         chipStep2.classList.toggle('is-done', step2Done);
+
+        cardNum3.innerHTML = step3Done ? CHECK_SVG : '3';
+        cardNum3.classList.toggle('is-done', step3Done);
+        dotStep3.innerHTML = step3Done ? MINI_CHECK_SVG : '3';
+        chipStep3.classList.toggle('is-done', step3Done);
       }
 
       // API Key Form
@@ -2011,12 +2021,12 @@
       });
 
       launchSiteBtn.addEventListener('click', () => {
-        step2Done = true;
+        step3Done = true;
         updateProgress();
       });
 
       launchDemoBtn.addEventListener('click', () => {
-        step2Done = true;
+        step3Done = true;
         updateProgress();
       });
 
@@ -2091,9 +2101,9 @@
           profileSummaryBadge.classList.remove('is-neutral');
           profileSummarySub.textContent = summarizeProfile(p) || 'Profile saved and active for your surveys.';
         } else {
-          profileSummaryBadge.textContent = 'Optional';
+          profileSummaryBadge.textContent = 'Step 2';
           profileSummaryBadge.classList.add('is-neutral');
-          profileSummarySub.textContent = 'Save an age, ZIP code, and job so your answers never contradict each other.';
+          profileSummarySub.textContent = 'Save an age, ZIP code, and job so your answers stay 100% consistent across questions.';
         }
         return hasAny;
       }
@@ -2108,7 +2118,10 @@
 
       try {
         const cachedProf = JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || 'null');
-        if (cachedProf) fillProfileForm(cachedProf);
+        if (cachedProf) {
+          fillProfileForm(cachedProf);
+          step2Done = Object.values(cachedProf).some(Boolean);
+        }
       } catch (e) {}
 
       Object.values(profileFields).forEach((el) => {
@@ -2127,6 +2140,8 @@
         e.preventDefault();
         const data = readProfileForm();
         const hasAny = syncProfileSummary(data);
+        step2Done = hasAny;
+        updateProgress();
         try { localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(data)); } catch (err) {}
         if (bridgeConnected) {
           window.dispatchEvent(new CustomEvent('gt:save-profile', { detail: { profile: data } }));
@@ -2137,6 +2152,8 @@
 
       clearProfileBtn.addEventListener('click', () => {
         fillProfileForm({});
+        step2Done = false;
+        updateProgress();
         try { localStorage.removeItem(PROFILE_LS_KEY); } catch (err) {}
         if (bridgeConnected) {
           window.dispatchEvent(new CustomEvent('gt:clear-profile'));
@@ -2240,8 +2257,11 @@
 
         if (detail.profile && typeof detail.profile === 'object' && Object.values(detail.profile).some(Boolean)) {
           fillProfileForm(detail.profile);
+          step2Done = true;
           try { localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(detail.profile)); } catch (err) {}
           setProfileMessage('Synced with script', 'ok');
+        } else {
+          step2Done = false;
         }
 
         if (typeof detail.trueAuto === 'boolean') {
@@ -2290,6 +2310,8 @@
       window.addEventListener('gt:profile-saved', (e) => {
         const d = e.detail || {};
         if (d.ok) {
+          step2Done = Boolean(d.compressed);
+          updateProgress();
           setProfileMessage(d.compressed ? 'Synced with script' : 'Profile cleared', d.compressed ? 'ok' : 'neutral');
           saveProfileBtn.textContent = 'Saved ✓';
           setTimeout(() => { saveProfileBtn.textContent = 'Save Profile'; }, 1800);
