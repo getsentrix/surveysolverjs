@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.21
+// @version      1.1.22
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -44,7 +44,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.21';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.22';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -4935,9 +4935,12 @@ RULES:
                 systemInstruction = `${personaPrefix}You are a real person quickly typing an open-ended survey answer.
 1. Voice: ${pickedStyle}
 2. Anti-AI rules: Never use "I believe", "Overall", "Additionally", "Furthermore", "enhance", "streamline", "seamless", "user experience", or balanced pros/cons summaries.
-3. Constraints: Satisfy any minimum/maximum character or word counts strictly. Plain text only, no quotes, bullets, or markdown.`;
-                maxTokens = 350;
-                temp = 0.78;
+3. Constraints: Satisfy any minimum/maximum character or word counts strictly. Plain text only, no quotes, bullets, or markdown.
+4. Length: Write ONLY 1-2 short casual sentences (~12-30 words max, no paragraphs or rambling) unless a higher minimum count is explicitly requested.`;
+                maxTokens = (constraints.minChars > 180 || constraints.minWords > 40)
+                    ? Math.min(320, Math.max(120, Math.ceil((constraints.minChars || constraints.minWords * 7) / 3) + 40))
+                    : 95;
+                temp = 0.72;
             }
 
             const userParts = imagePart
@@ -5003,6 +5006,21 @@ RULES:
             res = res.replace(/^(i usually listen to|i listen to|i like|my favorite is|favorite station is)\s+/i, '').trim();
             if (res.length > 35) res = res.slice(0, 35).trim();
             return res;
+        }
+
+        if (mode === 'LONG_TEXT' && !constraints.maxChars && !constraints.maxWords && (constraints.minChars || 0) <= 150 && (constraints.minWords || 0) <= 30) {
+            const minReqChars = Math.max(constraints.minChars || 0, (constraints.minWords || 0) * 6);
+            const sentences = res.match(/[^.!?]+[.!?]+/g);
+            if (sentences && sentences.length > 2) {
+                let kept = '';
+                for (const s of sentences) {
+                    const candidate = (kept + ' ' + s.trim()).trim();
+                    if (kept.length >= Math.max(minReqChars, 30) && candidate.length > 190) break;
+                    kept = candidate;
+                    if (kept.split(/\s+/).length >= 28 && kept.length >= minReqChars) break;
+                }
+                if (kept.length >= minReqChars) res = kept;
+            }
         }
 
         if (constraints.maxWords > 0) {
