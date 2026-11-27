@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.6
+// @version      1.1.7
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.6';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.7';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -61,8 +61,22 @@
     const GM_KEY_TRUE_AUTO = '__gt_true_auto_v1';
     const GM_KEY_RECENT_SURVEYS = '__gt_recent_surveys_v1';
     const GM_KEY_SESSION_MEM = '__gt_session_memory_v1';
+    const GM_KEY_ACTIVE_LOCK = '__gt_active_tab_lock_v1';
     const AF_STATE_TTL_MS = 25 * 60 * 1000;
     const AF_HANDOFF_TTL_MS = 120 * 1000;
+    const ACTIVE_LOCK_TTL_MS = 12 * 1000;
+    const TAB_ID = (() => {
+        try {
+            let id = sessionStorage.getItem('__gt_tab_id_v1');
+            if (!id) {
+                id = `tab_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+                sessionStorage.setItem('__gt_tab_id_v1', id);
+            }
+            return id;
+        } catch (e) {
+            return `tab_${Math.random().toString(36).slice(2, 10)}`;
+        }
+    })();
     let registeredUpdateMenuVersion = '';
 
     // Private per-DOM-node tracking in WeakSet/WeakMap so host pages cannot inspect custom attributes
@@ -596,13 +610,88 @@
         }
     }
 
-    function stampAutoFarmHandoff() {
+    function readActiveTabLock() {
+        try {
+            const raw = gmGet(GM_KEY_ACTIVE_LOCK, '');
+            if (!raw) return null;
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            return (parsed && typeof parsed === 'object') ? parsed : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function claimActiveTabLock(kind = 'survey') {
+        try {
+            gmSet(GM_KEY_ACTIVE_LOCK, JSON.stringify({
+                tabId: TAB_ID,
+                kind,
+                origin: location.origin,
+                ts: Date.now(),
+                releasedAt: 0
+            }));
+        } catch (e) {}
+    }
+
+    function heartbeatActiveTabLock(kind = 'survey') {
+        const lock = readActiveTabLock();
+        if (!lock || lock.releasedAt || lock.tabId === TAB_ID || (Date.now() - (lock.ts || 0)) >= ACTIVE_LOCK_TTL_MS) {
+            claimActiveTabLock(kind);
+        }
+    }
+
+    function releaseActiveTabLock(clearAll = false) {
+        try {
+            if (clearAll) {
+                gmSet(GM_KEY_ACTIVE_LOCK, '');
+                return;
+            }
+            const lock = readActiveTabLock();
+            if (lock && lock.tabId === TAB_ID) {
+                gmSet(GM_KEY_ACTIVE_LOCK, JSON.stringify(Object.assign({}, lock, {
+                    releasedAt: Date.now(),
+                    ts: Date.now()
+                })));
+            }
+        } catch (e) {}
+    }
+
+    function isOtherTabLockActive() {
+        const lock = readActiveTabLock();
+        if (!lock || !lock.tabId || lock.tabId === TAB_ID || lock.releasedAt) return false;
+        return (Date.now() - (lock.ts || 0)) < ACTIVE_LOCK_TTL_MS;
+    }
+
+    function hasActiveSurveyLockElsewhere() {
+        const lock = readActiveTabLock();
+        if (!lock || !lock.tabId || lock.tabId === TAB_ID || lock.releasedAt) return false;
+        return lock.kind === 'survey' && (Date.now() - (lock.ts || 0)) < ACTIVE_LOCK_TTL_MS;
+    }
+
+    function pauseAsOtherTab(msg = 'Paused: other tab active') {
+        abortRequested = true;
+        autoFarmActive = false;
+        isProcessing = false;
+        for (const req of activeXhrs) {
+            try { if (req && typeof req.abort === 'function') req.abort(); } catch (e) {}
+        }
+        activeXhrs.clear();
+        for (const wake of activeSleepResolvers) {
+            try { wake(); } catch (e) {}
+        }
+        activeSleepResolvers.clear();
+        syncGUIProcessingState();
+        updateHUD(msg, 'info');
+    }
+
+    function stampAutoFarmHandoff(fromOfferWall = false) {
         try {
             if (!autoFarmActive || abortRequested || isOnWelcomePage()) return;
             gmSet(GM_KEY_AF_HANDOFF, JSON.stringify({
                 ts: Date.now(),
                 fromOrigin: location.origin,
                 fromHref: location.href,
+                fromOfferWall: Boolean(fromOfferWall),
                 surveyKey: getSurveyIdentityKey()
             }));
         } catch (e) {}
@@ -761,6 +850,11 @@
             return false;
         }
 
+        // Never resume in a background tab while another tab owns the active lock
+        if (document.hidden && isOtherTabLockActive()) {
+            return false;
+        }
+
         // Cross-origin redirect handoff (router -> survey or survey A -> survey B in active tab)
         const handoff = readAutoFarmHandoff();
         if (handoff && handoff.fromOrigin !== location.origin && (!entry || (handoff.ts || 0) >= (entry.ts || 0))) {
@@ -807,13 +901,19 @@
     }
 
     window.addEventListener('pagehide', () => {
-        if (autoFarmActive && !abortRequested) stampAutoFarmHandoff();
+        if (autoFarmActive && !abortRequested) {
+            stampAutoFarmHandoff(isOfferWallPage());
+            releaseActiveTabLock(false);
+        }
     });
     window.addEventListener('beforeunload', () => {
-        if (autoFarmActive && !abortRequested) stampAutoFarmHandoff();
+        if (autoFarmActive && !abortRequested) {
+            stampAutoFarmHandoff(isOfferWallPage());
+            releaseActiveTabLock(false);
+        }
     });
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden && autoFarmActive && !abortRequested) stampAutoFarmHandoff();
+        if (document.hidden && autoFarmActive && !abortRequested) stampAutoFarmHandoff(isOfferWallPage());
     });
 
     function readReloadStuckState() {
@@ -889,6 +989,7 @@
         autoFarmActive = false;
         writeAutoFarmFlag(false);
         clearAutoFarmHandoff();
+        releaseActiveTabLock(true);
 
         for (const req of activeXhrs) {
             try {
@@ -1385,8 +1486,9 @@
         }
         autoFarmActive = true;
         abortRequested = false;
+        claimActiveTabLock(isOfferWallPage() ? 'offerwall' : 'survey');
         writeAutoFarmFlag(true);
-        stampAutoFarmHandoff();
+        stampAutoFarmHandoff(isOfferWallPage());
         syncGUIProcessingState();
         if (!autoFarmLoopRunning) {
             runAutoFarmLoop(resumeMode);
@@ -1657,6 +1759,23 @@
             let emptyIdleTicks = 0;
 
             while (autoFarmActive && !abortRequested) {
+                const onOfferWallNow = isOfferWallPage();
+                if (isOtherTabLockActive()) {
+                    if (onOfferWallNow && isTrueAutoEnabled() && hasActiveSurveyLockElsewhere()) {
+                        updateHUD('Standby: survey active', 'info');
+                        await abortableSleep(1500);
+                        continue;
+                    }
+                    pauseAsOtherTab();
+                    return;
+                }
+                if (onOfferWallNow && document.hidden) {
+                    updateHUD('Standby: survey tab open', 'info');
+                    await abortableSleep(1500);
+                    continue;
+                }
+                heartbeatActiveTabLock(onOfferWallNow ? 'offerwall' : 'survey');
+
                 const liveSurveyKey = getSurveyIdentityKey();
                 if (liveSurveyKey !== currentLoopSurveyKey) {
                     currentLoopSurveyKey = liveSurveyKey;
@@ -1703,10 +1822,35 @@
                         updateHUD('True Auto: picking survey...', 'farming');
                         await abortableSleep(randomBetween(700, 1200));
                         if (abortRequested || !autoFarmActive) return;
+                        if (document.hidden || isOtherTabLockActive()) continue;
                         writeAutoFarmFlag(true);
-                        stampAutoFarmHandoff();
+                        stampAutoFarmHandoff(true);
                         await triggerNativeClick(chosen.el, null, null);
-                        await abortableSleep(1100);
+                        await abortableSleep(2000);
+                        if (abortRequested || !autoFarmActive) return;
+
+                        // Wait in standby while the opened survey tab is active/open; only resume if it closes & focus returns
+                        while (autoFarmActive && !abortRequested && isOfferWallPage()) {
+                            if (!isTrueAutoEnabled()) {
+                                triggerAbort('Stopped on survey list (True Auto off)', 'info');
+                                return;
+                            }
+                            if (document.hidden || hasActiveSurveyLockElsewhere()) {
+                                updateHUD('Standby: survey active', 'info');
+                                await abortableSleep(1500);
+                                continue;
+                            }
+                            if (isOtherTabLockActive()) {
+                                pauseAsOtherTab();
+                                return;
+                            }
+                            // Confirm no newly opened survey tab is still booting before picking another
+                            await abortableSleep(1800);
+                            if (abortRequested || !autoFarmActive) return;
+                            if (document.hidden || hasActiveSurveyLockElsewhere()) continue;
+                            claimActiveTabLock('offerwall');
+                            break;
+                        }
                         continue;
                     }
                 }
@@ -1990,6 +2134,10 @@
                     if (abortRequested || !autoFarmActive) return;
                 }
 
+                if (isOtherTabLockActive()) {
+                    pauseAsOtherTab();
+                    return;
+                }
                 const prevPageUrl = location.href;
                 stampAutoFarmHandoff();
                 const clickRoots = collectDocumentRoots();
