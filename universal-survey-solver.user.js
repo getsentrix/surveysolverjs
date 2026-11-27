@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.8
+// @version      1.1.9
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.8';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.9';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -5465,12 +5465,14 @@ RULES:
                 return true;
             }
             const lbl = findLabelForInput(el);
-            const container = lbl || el.closest('label, .cm-response-container, .cf-radio-answer, .cf-checkbox-answer, td, li, div');
-            if (container) {
+            const firIcon = el.closest('td, th, .cell')?.querySelector('.fir-icon');
+            const wrapper = el.closest('label, .cm-response-container, .cf-radio-answer, .cf-checkbox-answer, td.clickableCell, td, li, div');
+            for (const container of [lbl, firIcon, wrapper]) {
+                if (!container) continue;
                 const cStyle = window.getComputedStyle(container);
-                if (cStyle.display === 'none' || cStyle.visibility === 'hidden' || parseFloat(cStyle.opacity) === 0) return false;
+                if (cStyle.display === 'none' || cStyle.visibility === 'hidden' || parseFloat(cStyle.opacity) === 0) continue;
                 const cr = container.getBoundingClientRect();
-                return cr.width > 0 && cr.height > 0 && !isClippedByHorizontalContainer(container, cr);
+                if (cr.width > 0 && cr.height > 0 && !isClippedByHorizontalContainer(container, cr)) return true;
             }
             return false;
         }
