@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.16
+// @version      1.1.17
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -14,6 +14,7 @@
 // @grant        GM_setValue
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
+// @grant        GM_download
 // @connect      generativelanguage.googleapis.com
 // @connect      update.greasyfork.org
 // @run-at       document-idle
@@ -42,7 +43,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.16';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.17';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -62,9 +63,12 @@
     const GM_KEY_RECENT_SURVEYS = '__gt_recent_surveys_v1';
     const GM_KEY_SESSION_MEM = '__gt_session_memory_v1';
     const GM_KEY_ACTIVE_LOCK = '__gt_active_tab_lock_v1';
+    const GM_KEY_SELF_HEAL_LOGS = '__gt_self_heal_logs_v1';
+    const GM_KEY_SELF_HEAL_TRY = '__gt_self_heal_try_v1';
     const AF_STATE_TTL_MS = 25 * 60 * 1000;
     const AF_HANDOFF_TTL_MS = 120 * 1000;
     const ACTIVE_LOCK_TTL_MS = 12 * 1000;
+    const selfHealTriedSigs = new Set();
     const TAB_ID = (() => {
         try {
             let id = sessionStorage.getItem('__gt_tab_id_v1');
@@ -374,6 +378,9 @@
             });
             GM_registerMenuCommand('🔄 Check for Updates (Greasy Fork)', () => {
                 checkForScriptUpdate(true);
+            });
+            GM_registerMenuCommand('📋 Download Self-Heal Logs (.txt)', () => {
+                exportSelfHealLogFile(true);
             });
         } catch (e) {}
     }
@@ -2050,6 +2057,15 @@
                         return;
                     }
                     emptyIdleTicks++;
+                    if (emptyIdleTicks === 5 && !isOfferWallPage(postRoots)) {
+                        const healSig = getPageSignature(postRoots, postBlocks);
+                        const rescued = await attemptLastResortAiNavigation('waiting_for_page', postRoots, postBlocks, healSig);
+                        if (abortRequested || !autoFarmActive) return;
+                        if (rescued) {
+                            emptyIdleTicks = 0;
+                            continue;
+                        }
+                    }
                     if (emptyIdleTicks >= 10) {
                         triggerAbort('Farm stopped: no page', 'info');
                         return;
@@ -2107,15 +2123,23 @@
                         if (detectEndOfSurveyPage(postRoots)) {
                             clearSessionMemory();
                             triggerAbort('Auto-Farm finished', 'active');
-                        } else {
-                            triggerAbort('Farm paused: no Next', 'info');
+                            return;
                         }
+                        const healSig = getPageSignature(postRoots, postBlocks);
+                        const rescued = await attemptLastResortAiNavigation('no_next_button', postRoots, postBlocks, healSig);
+                        if (abortRequested || !autoFarmActive) return;
+                        if (rescued) continue;
+                        triggerAbort('Farm paused: no Next', 'info');
                         return;
                     }
                 }
 
                 // Never blindly click Next when detected required blocks remain unanswered
                 if (stillUnanswered.length > 0) {
+                    const healSig = getPageSignature(postRoots, postBlocks);
+                    const rescued = await attemptLastResortAiNavigation('unanswered_field', postRoots, postBlocks, healSig);
+                    if (abortRequested || !autoFarmActive) return;
+                    if (rescued) continue;
                     writeReloadStuckState('', 0);
                     triggerAbort('Paused: unanswered field', 'error');
                     return;
@@ -2127,6 +2151,14 @@
                 if (!solvedAnyOnPage && sigBeforeClick === lastStuckSignature) {
                     sameSignatureClicks++;
                     if (sameSignatureClicks >= maxSameSigAttempts) {
+                        const rescued = await attemptLastResortAiNavigation('stuck_retry_limit', postRoots, postBlocks, sigBeforeClick);
+                        if (abortRequested || !autoFarmActive) return;
+                        if (rescued) {
+                            lastStuckSignature = '';
+                            sameSignatureClicks = 0;
+                            writeReloadStuckState('', 0);
+                            continue;
+                        }
                         writeReloadStuckState('', 0);
                         triggerAbort(
                             stillUnanswered.length > 0 ? 'Paused: unanswered field' : 'Farm paused: stuck',
@@ -3379,9 +3411,16 @@
         const formNavControlRx = /^(?:back|go\s*back|previous(?:\s*(?:page|step|question))?|prev|next(?:\s*(?:page|step|question))?|submit|clear\s*form|reset\s*form|edit\s*this\s*form|contact\s*form\s*owner)$/i;
         const resolveInteractiveCard = (el) => {
             if (!el) return el;
-            if (el.matches('label, button, [role="button"], [data-testid^="option-"], .choice-option, [class*="choice-option" i]')) return el;
-            const inner = el.querySelector('[role="button"], button, label, [data-testid^="option-"], .choice-option, [class*="choice-option" i], div[tabindex="0"]');
-            if (inner && isElementVisible(inner)) return inner;
+            if (el.matches('button, [role="button"], [data-testid^="option-"], .choice-option, [class*="choice-option" i]')) return el;
+            const innerAction = el.querySelector('[role="button"], button, [data-testid^="option-"], .choice-option, [class*="choice-option" i]');
+            if (innerAction && isElementVisible(innerAction)) return innerAction;
+            const tabOverlay = el.querySelector('div[tabindex="0"], [tabindex="0"]');
+            if (tabOverlay && isElementVisible(tabOverlay) && window.getComputedStyle(tabOverlay).cursor === 'pointer') {
+                return tabOverlay;
+            }
+            if (el.matches('label')) return el;
+            const innerLabel = el.querySelector('label');
+            if (innerLabel && isElementVisible(innerLabel)) return innerLabel;
             return el;
         };
 
@@ -3461,7 +3500,7 @@
                                 text,
                                 target: card,
                                 wrapper: wrapper !== card ? wrapper : null,
-                                label: card.tagName === 'LABEL' ? card : (card.querySelector('label') || wrapper.querySelector('label')),
+                                label: inp ? (card.tagName === 'LABEL' ? card : (card.querySelector('label') || wrapper.querySelector('label'))) : null,
                                 input: inp,
                                 isChecked: false
                             };
@@ -5370,6 +5409,12 @@ RULES:
         if (hitEl && isHudElement(hitEl)) hitEl = null;
 
         let clickNode = (hitEl && (primaryNode === hitEl || primaryNode.contains(hitEl))) ? hitEl : primaryNode;
+        if (!input && hitEl && hitEl !== clickNode) {
+            const hitInteractive = (hitEl.getAttribute?.('tabindex') === '0' || window.getComputedStyle(hitEl).cursor === 'pointer');
+            if ((target && (target === hitEl || target.contains(hitEl))) || hitInteractive) {
+                clickNode = hitEl;
+            }
+        }
         if (typeof SVGElement !== 'undefined' && clickNode instanceof SVGElement) {
             clickNode = clickNode.closest('button, a, [role="button"], label, [tabindex]') || primaryNode;
         }
@@ -5752,6 +5797,309 @@ RULES:
             }
         }
         return null;
+    }
+
+    function readSelfHealLogs() {
+        try {
+            const raw = gmGet(GM_KEY_SELF_HEAL_LOGS, '');
+            const parsed = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function formatSelfHealLogsText(logs) {
+        if (!logs.length) return 'No self-heal AI recovery events logged yet.\n';
+        return logs.map((entry, idx) => {
+            return [
+                `============================================================`,
+                `[${idx + 1}] ${entry.timestamp || ''} | Outcome: ${entry.outcome || 'unknown'} | Trigger: ${entry.triggerReason || ''}`,
+                `URL: ${entry.url || ''}`,
+                `Title: ${entry.title || ''}`,
+                `Clicked / Actions: ${JSON.stringify(entry.actionsTaken || [])}`,
+                `--- SYSTEM PROMPT ---`,
+                entry.systemPrompt || '',
+                `--- USER PROMPT ---`,
+                entry.userPrompt || '',
+                `--- MODEL RAW RESPONSE ---`,
+                entry.rawResponse || JSON.stringify(entry.parsedResponse || {}),
+                ``
+            ].join('\n');
+        }).join('\n');
+    }
+
+    function exportSelfHealLogFile(notifyIfEmpty = false) {
+        const logs = readSelfHealLogs();
+        if (!logs.length) {
+            if (notifyIfEmpty) updateHUD('No self-heal logs yet', 'info', 2500);
+            return;
+        }
+        const text = formatSelfHealLogsText(logs);
+        const filename = 'survey-solver-selfheal-log.txt';
+        try {
+            if (typeof GM_download === 'function') {
+                const dataUrl = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
+                GM_download({
+                    url: dataUrl,
+                    name: filename,
+                    saveAs: false,
+                    conflictAction: 'overwrite',
+                    onerror: () => {
+                        try {
+                            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = filename;
+                            a.click();
+                            setTimeout(() => URL.revokeObjectURL(url), 4000);
+                        } catch (e) {}
+                    }
+                });
+                return;
+            }
+        } catch (e) {}
+        try {
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body?.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+        } catch (e) {}
+    }
+
+    function saveSelfHealLogEntry(entry, downloadFile = false) {
+        try {
+            const logs = readSelfHealLogs();
+            logs.push(entry);
+            gmSet(GM_KEY_SELF_HEAL_LOGS, JSON.stringify(logs.slice(-30)));
+        } catch (e) {}
+        if (downloadFile) {
+            exportSelfHealLogFile(false);
+        }
+    }
+
+    function collectLastResortCandidates(roots) {
+        const raw = queryAllInRoots(
+            roots,
+            'button, a, input:not([type="hidden"]), select, textarea, [role="button"], [role="radio"], [role="checkbox"], [role="option"], [role="link"], [tabindex]:not([tabindex="-1"]), [onclick], .__flexgrid_row > div, ._rowpicker [tabindex="0"], [class*="choice" i], [class*="option" i]'
+        );
+        // Also pick up visible pointer elements inside main survey containers (custom JS cards/buttons)
+        const pointerEls = queryAllInRoots(roots, 'form div, main div, .question div, .answers div, [class*="flexgrid" i] div');
+        for (const el of pointerEls) {
+            if (!el || isHudElement(el) || !isElementVisible(el)) continue;
+            if (window.getComputedStyle(el).cursor === 'pointer') raw.push(el);
+        }
+
+        const rejectUtilRx = /\b(privacy|terms(?:\s+of\s+use)?|cookie|accessibility|support|help|logout|log\s*out|sign\s*out|back|previous|goback|go\s*back|step\s*back)\b/i;
+        const candidates = [];
+        const seen = new Set();
+
+        for (const el of raw) {
+            if (!el || seen.has(el) || !isElementVisible(el) || isHudElement(el)) continue;
+            if (el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
+            if (el.closest('header, nav, footer, [role="banner"], [role="contentinfo"]') && !el.closest('form')) continue;
+
+            const r = el.getBoundingClientRect();
+            if (r.width < 12 || r.height < 12 || r.height > 320 || r.width > window.innerWidth * 0.98) continue;
+
+            // Avoid bloated wrapper containers holding multiple distinct sub-buttons
+            const nestedActionCount = el.querySelectorAll('button, input:not([type="hidden"]), a[href], [role="button"], [role="radio"], [role="checkbox"]').length;
+            if (nestedActionCount > 1) continue;
+
+            const tag = el.tagName;
+            const role = el.getAttribute('role') || '';
+            const type = (el.getAttribute('type') || el.type || '').toLowerCase();
+            const text = (
+                el.innerText ||
+                el.value ||
+                el.getAttribute('aria-label') ||
+                el.title ||
+                el.alt ||
+                ''
+            ).replace(/\s+/g, ' ').trim();
+            const parentText = (!text && el.parentElement)
+                ? (el.parentElement.innerText || '').replace(/\s+/g, ' ').trim()
+                : '';
+            const labelText = (text || parentText).slice(0, 110);
+            const sigText = `${labelText} ${el.id || ''} ${el.getAttribute('onclick') || ''} ${el.getAttribute('href') || ''}`;
+            if (rejectUtilRx.test(sigText)) continue;
+            if (!labelText && tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA' && !el.id && !el.getAttribute('onclick')) continue;
+
+            // Deduplicate wrappers that share the exact same rect/text, keeping the most specific clickable element
+            const existingIdx = candidates.findIndex(c =>
+                (c.el.contains(el) || el.contains(c.el)) &&
+                c.labelText === labelText
+            );
+            if (existingIdx !== -1) {
+                const prev = candidates[existingIdx].el;
+                const elMoreSpecific = (el.getAttribute('tabindex') === '0' && window.getComputedStyle(el).cursor === 'pointer') ||
+                    (prev.contains(el) && (tag === 'BUTTON' || tag === 'INPUT' || tag === 'A' || role === 'button'));
+                if (!elMoreSpecific) continue;
+                candidates.splice(existingIdx, 1);
+            }
+
+            seen.add(el);
+            const input = (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') ? el : (el.querySelector('input, select, textarea') || null);
+            const cls = (typeof el.className === 'string' ? el.className : '').trim().slice(0, 40);
+            const desc = `[${candidates.length}] <${tag.toLowerCase()}${type ? `:${type}` : ''}${role ? ` role=${role}` : ''}> text="${labelText}"${el.id ? ` id="${el.id}"` : ''}${cls ? ` class="${cls}"` : ''} rect=(${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)})`;
+            candidates.push({ el, input, labelText, desc });
+            if (candidates.length >= 40) break;
+        }
+        return candidates;
+    }
+
+    async function attemptLastResortAiNavigation(triggerReason, roots, blocks, pageSig) {
+        if (abortRequested || !autoFarmActive || document.hidden || isOfferWallPage(roots)) return false;
+        if (detectEndOfSurveyPage(roots) || detectBlockingCaptcha(roots, blocks.length > 0)) return false;
+        if (!pageSig || selfHealTriedSigs.has(pageSig)) return false;
+
+        try {
+            const rawPrev = gmGet(GM_KEY_SELF_HEAL_TRY, '');
+            const prev = rawPrev ? (typeof rawPrev === 'string' ? JSON.parse(rawPrev) : rawPrev) : null;
+            if (prev && prev.sig === pageSig && prev.url === location.href && (Date.now() - (prev.ts || 0)) < 45000) {
+                return false;
+            }
+            gmSet(GM_KEY_SELF_HEAL_TRY, JSON.stringify({ sig: pageSig, url: location.href, ts: Date.now() }));
+        } catch (e) {}
+        selfHealTriedSigs.add(pageSig);
+
+        const candidates = collectLastResortCandidates(roots);
+        if (candidates.length === 0) return false;
+
+        const alerts = queryAllInRoots(roots, '[role="alert"], .question-error, .hasError, .error, .invalid-feedback')
+            .filter(el => isElementVisible(el) && !isHudElement(el))
+            .map(el => (el.innerText || '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .slice(0, 4)
+            .join(' | ');
+        const pageText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 1500);
+        const userPrompt = [
+            `Trigger: ${triggerReason}`,
+            `URL: ${location.href}`,
+            `Title: ${document.title}`,
+            alerts ? `Visible Errors/Alerts: ${alerts}` : '',
+            `Page Text Snippet:\n${pageText}`,
+            `Interactive Elements:\n${candidates.map(c => c.desc).join('\n')}`
+        ].filter(Boolean).join('\n\n');
+
+        const systemPrompt = `${buildConsistencySystemPrefix()}You are a last-resort UI recovery agent for a survey runner that is stuck or missing a detected question/Next button.
+Analyze the page text, any visible error alerts, and the numbered interactive elements.
+Decide the exact element index (or short ordered sequence of up to 3 indices, e.g. answer option then Next/Submit) to click — or text to type into an input — to progress forward in the survey.
+RULES:
+1. NEVER click footer Help/Privacy/Terms links, cookie settings, or Back/Cancel/Logout buttons.
+2. If an error alert asks to fix an answer (or an unanswered choice option blocks Submit/Next), click the valid option first and then the forward/Submit button if present.
+3. If there is genuinely no survey action possible (blank spinner / end page / captcha), set "action": "none".
+4. Output strictly JSON: {"action":"click"|"type"|"none","indices":[<0-based ints>],"text":"<only if action=type>","reason":"<brief reason>"}`;
+
+        updateHUD('AI fallback: inspecting...', 'working');
+        let rawResponse = '';
+        let parsed = null;
+        try {
+            const data = await sendGeminiRequestWithRetry({
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: { temperature: 0.15, maxOutputTokens: 220, responseMimeType: 'application/json' }
+            });
+            rawResponse = extractCandidateText(data) || '';
+            parsed = parseModelJSON(rawResponse || '{}');
+        } catch (err) {
+            saveSelfHealLogEntry({
+                timestamp: new Date().toISOString(),
+                triggerReason,
+                url: location.href,
+                title: document.title,
+                systemPrompt,
+                userPrompt,
+                rawResponse: err?.message || 'API error',
+                parsedResponse: null,
+                actionsTaken: [],
+                outcome: 'error'
+            }, false);
+            return false;
+        }
+
+        if (abortRequested || !autoFarmActive) return false;
+        const action = String(parsed?.action || 'none').toLowerCase();
+        const indices = Array.isArray(parsed?.indices)
+            ? parsed.indices.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n >= 0 && n < candidates.length).slice(0, 3)
+            : [];
+
+        const actionsTaken = [];
+        if (action === 'type' && indices.length > 0 && typeof parsed?.text === 'string' && parsed.text.trim()) {
+            const targetCand = candidates[indices[0]];
+            const inp = targetCand.input || targetCand.el;
+            await executeTextTypingWithValue(inp, parsed.text.trim());
+            actionsTaken.push({ index: indices[0], type: 'type', desc: targetCand.desc, text: parsed.text.trim() });
+            if (indices.length > 1) {
+                for (const idx of indices.slice(1)) {
+                    const nextCand = candidates[idx];
+                    if (nextCand) {
+                        await triggerNativeClick(nextCand.el, nextCand.input, null);
+                        actionsTaken.push({ index: idx, type: 'click', desc: nextCand.desc });
+                        await abortableSleep(pickRangeDelay(SPD.betweenClicks));
+                    }
+                }
+            }
+        } else if (action === 'click' && indices.length > 0) {
+            for (const idx of indices) {
+                if (abortRequested) break;
+                const cand = candidates[idx];
+                if (!cand || !cand.el?.isConnected) continue;
+                actionsTaken.push({ index: idx, type: 'click', desc: cand.desc });
+                await triggerNativeClick(cand.el, cand.input, null);
+                await abortableSleep(pickRangeDelay(SPD.betweenClicks));
+            }
+        }
+
+        let outcome = 'none';
+        if (actionsTaken.length > 0) {
+            const changed = await waitForPageTransition(pageSig, 3500, location.href);
+            outcome = changed ? 'advanced' : 'attempted_no_transition';
+            if (changed) {
+                updateHUD('AI self-healed! (logged)', 'active', 3500);
+            }
+        }
+
+        saveSelfHealLogEntry({
+            timestamp: new Date().toISOString(),
+            triggerReason,
+            url: location.href,
+            title: document.title,
+            systemPrompt,
+            userPrompt,
+            rawResponse,
+            parsedResponse: parsed,
+            actionsTaken,
+            outcome
+        }, outcome === 'advanced' || actionsTaken.length > 0);
+
+        return outcome === 'advanced';
+    }
+
+    async function executeTextTypingWithValue(el, textVal) {
+        if (!el || abortRequested) return;
+        const val = String(textVal || '').trim();
+        if (!val) return;
+        el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+        try { el.focus(); } catch (e) {}
+        if (el.isContentEditable) {
+            el.textContent = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+            const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (setter) setter.call(el, val);
+            else el.value = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
     }
 
     function callGeminiJSON(userPrompt, systemPrompt, maxOutputTokens = 400) {
