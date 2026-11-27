@@ -62,7 +62,7 @@
       --danger-text: #b91c1c;
 
       --shadow-card: 0 1px 2px rgba(24, 24, 27, 0.04), 0 6px 20px -12px rgba(24, 24, 27, 0.08);
-      --shadow-hud: 0 16px 36px -8px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      --shadow-hud: 0 16px 36px -8px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.08);
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
     }
 
@@ -890,143 +890,44 @@
       width: 100%;
     }
 
-    /* Step 3 Interactive HUD Demo + Shortcuts */
-    .hud-demo-box {
+    /* Step 3 Annotated Floating Bar Diagram */
+    .hud-diagram-stage {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 32px 16px 72px;
       border-radius: 14px;
       border: 1px solid var(--border);
       background-color: var(--surface-soft);
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+      overflow-x: auto;
     }
 
-    .demo-question {
-      padding: 16px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background-color: var(--surface);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .demo-q-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 13.5px;
-      font-weight: 600;
-    }
-
-    .demo-q-step {
-      font-family: var(--font-mono);
-      font-size: 11.5px;
-      font-weight: 500;
-      color: var(--text-subtle);
-    }
-
-    .demo-opts {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
-    }
-
-    .demo-opt {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 11px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background-color: var(--surface-soft);
-      font-size: 12.5px;
-      color: var(--text-muted);
-      transition: all 160ms var(--ease);
-    }
-
-    .demo-opt-check {
-      width: 13px;
-      height: 13px;
-      border-radius: 4px;
-      border: 1.5px solid var(--border-strong);
-      background-color: var(--surface);
-      flex-shrink: 0;
-      transition: all 160ms var(--ease);
-    }
-
-    .demo-opt.is-picked {
-      border-color: var(--accent-border);
-      background-color: var(--accent-soft);
-      color: var(--text);
-      font-weight: 500;
-    }
-
-    .demo-opt.is-picked .demo-opt-check {
-      border-color: var(--accent);
-      background-color: var(--accent);
-    }
-
-    .demo-q-foot {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
-      color: var(--text-subtle);
-    }
-
-    .demo-next {
-      padding: 4px 12px;
-      border-radius: 7px;
-      border: 1px solid var(--border-strong);
-      background-color: var(--surface-soft);
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
-      transition: all 160ms var(--ease);
-    }
-
-    .demo-next.is-lit {
-      border-color: var(--primary);
-      background-color: var(--primary);
-      color: var(--primary-fg);
-    }
-
-    .pill-stage {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-    }
-
-    /* Exact Floating Bar Preview */
     .mock-hud {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 6px 8px 6px 12px;
+      gap: 8px;
+      padding: 8px 10px 8px 14px;
       border-radius: 999px;
       background-color: #1f1f23;
       color: #ececec;
       box-shadow: var(--shadow-hud);
-      transition: padding 200ms var(--ease);
+      flex-shrink: 0;
     }
 
-    .mock-hud.is-minimized {
-      padding: 6px 8px;
-      gap: 2px;
+    .hud-slot {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
-    .mock-status-btn {
+    .mock-status {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      border: 0;
-      padding: 2px 4px 2px 0;
-      background: transparent;
-      color: inherit;
-      cursor: pointer;
+      height: 32px;
+      padding: 0 4px 0 2px;
+      cursor: default;
     }
 
     .mock-dot {
@@ -1037,44 +938,8 @@
       flex-shrink: 0;
     }
 
-    .mock-dot.is-working {
-      background-color: #f59e0b;
-      animation: dot-pulse 1.2s ease-in-out infinite;
-    }
-
-    .mock-dot.is-farming {
-      background-color: #10a37f;
-      animation: dot-pulse 1.3s ease-in-out infinite;
-    }
-
-    .mock-dot.is-error {
-      background-color: #ef4444;
-    }
-
-    @keyframes dot-pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.28); opacity: 0.6; }
-    }
-
-    .mock-collapsible {
-      display: inline-flex;
-      align-items: center;
-      overflow: hidden;
-      max-width: 150px;
-      opacity: 1;
-      transition: max-width 200ms var(--ease), opacity 160ms var(--ease), padding 200ms var(--ease), margin 200ms var(--ease);
-    }
-
-    .mock-hud.is-minimized .mock-collapsible {
-      max-width: 0;
-      opacity: 0;
-      margin: 0 !important;
-      padding: 0 !important;
-      pointer-events: none;
-    }
-
     .mock-status-text {
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 500;
       color: #d4d4d8;
       white-space: nowrap;
@@ -1082,30 +947,31 @@
 
     .mock-divider {
       width: 1px;
-      height: 16px;
-      margin: 0 4px;
+      height: 18px;
+      margin: 0 2px;
       background-color: rgba(255, 255, 255, 0.14);
+      flex-shrink: 0;
     }
 
     .mock-btn {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      height: 28px;
-      padding: 0 11px;
-      border: 0;
+      gap: 6px;
+      height: 32px;
+      padding: 0 13px;
       border-radius: 999px;
       background-color: rgba(255, 255, 255, 0.09);
       color: #f4f4f5;
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 500;
       white-space: nowrap;
-      cursor: pointer;
-      transition: background-color 140ms var(--ease), transform 100ms var(--ease);
+      cursor: default;
+      transition: background-color 150ms var(--ease);
     }
 
-    .mock-btn:hover { background-color: rgba(255, 255, 255, 0.17); }
-    .mock-btn:active { transform: scale(0.96); }
+    .hud-slot:hover .mock-btn {
+      background-color: rgba(255, 255, 255, 0.17);
+    }
 
     .mock-btn.is-primary {
       background-color: #f4f4f5;
@@ -1113,72 +979,79 @@
       font-weight: 600;
     }
 
-    .mock-btn.is-primary:hover { background-color: #ffffff; }
-
-    .mock-btn.is-stop {
-      background-color: rgba(239, 68, 68, 0.22);
-      border: 1px solid rgba(239, 68, 68, 0.45);
-      color: #fecaca;
+    .hud-slot:hover .mock-btn.is-primary {
+      background-color: #ffffff;
     }
 
-    .mock-btn.is-auto-on {
-      background-color: rgba(16, 185, 129, 0.22);
-      border: 1px solid rgba(16, 185, 129, 0.5);
+    .mock-btn.is-auto {
+      background-color: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.45);
       color: #6ee7b7;
+    }
+
+    .hud-slot:hover .mock-btn.is-auto {
+      background-color: rgba(16, 185, 129, 0.3);
     }
 
     .mock-min {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      border: 0;
+      width: 32px;
+      height: 32px;
       border-radius: 999px;
       background: transparent;
       color: #a1a1aa;
-      cursor: pointer;
+      cursor: default;
+      transition: background-color 150ms var(--ease), color 150ms var(--ease);
     }
 
-    .mock-min:hover {
+    .hud-slot:hover .mock-min {
       background-color: rgba(255, 255, 255, 0.12);
       color: #ffffff;
     }
 
-    .hud-caption-row {
+    /* Downward Arrow + 1-2 Word Callout Under Each Button */
+    .hud-callout {
+      position: absolute;
+      top: calc(100% + 14px);
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      width: 100%;
-    }
-
-    .hud-caption {
-      margin: 0;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .hud-caption strong {
-      color: var(--text);
-      font-weight: 600;
-    }
-
-    .reset-btn {
-      border: 0;
-      background: transparent;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
+      gap: 4px;
+      pointer-events: none;
       color: var(--text-subtle);
-      cursor: pointer;
-      flex-shrink: 0;
+      transition: color 150ms var(--ease), transform 150ms var(--ease);
     }
 
-    .reset-btn:hover {
-      background-color: var(--surface);
+    .hud-arrow {
+      display: block;
+      opacity: 0.72;
+      transition: opacity 150ms var(--ease);
+    }
+
+    .hud-callout-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--text-muted);
+      white-space: nowrap;
+      line-height: 1.2;
+      transition: color 150ms var(--ease);
+    }
+
+    .hud-slot:hover .hud-callout {
+      color: var(--accent-text);
+      transform: translateX(-50%) translateY(2px);
+    }
+
+    .hud-slot:hover .hud-arrow {
+      opacity: 1;
+    }
+
+    .hud-slot:hover .hud-callout-label {
       color: var(--text);
     }
 
@@ -1468,8 +1341,7 @@
       .mini-steps,
       .launch-grid,
       .shortcuts-grid,
-      .profile-grid,
-      .demo-opts {
+      .profile-grid {
         grid-template-columns: 1fr;
       }
 
@@ -1482,6 +1354,40 @@
       .toggle-card {
         padding-left: 20px;
         padding-right: 20px;
+      }
+
+      .hud-diagram-stage {
+        padding: 26px 12px 66px;
+        justify-content: flex-start;
+      }
+
+      .mock-hud {
+        margin: 0 auto;
+        gap: 6px;
+        padding: 6px 8px 6px 12px;
+      }
+
+      .mock-btn {
+        height: 28px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+
+      .mock-status {
+        height: 28px;
+      }
+
+      .mock-min {
+        width: 28px;
+        height: 28px;
+      }
+
+      .hud-callout {
+        top: calc(100% + 12px);
+      }
+
+      .hud-callout-label {
+        font-size: 10.5px;
       }
 
       .progress-bar-group {
@@ -1693,69 +1599,82 @@
           <span class="step-badge">3</span>
           <div>
             <h2 id="step-3-heading">How the floating bar works</h2>
-            <p class="card-subtitle">Click any button on the preview bar below to see what it does on real survey pages.</p>
+            <p class="card-subtitle">This bar sits in the bottom-right corner of every survey page.</p>
           </div>
         </div>
       </div>
 
-      <div class="hud-demo-box">
-        <div class="demo-question" aria-hidden="true">
-          <div class="demo-q-top">
-            <span>Which streaming services have you used recently?</span>
-            <span class="demo-q-step">Q4 / 12</span>
+      <div class="hud-diagram-stage" role="img" aria-label="Floating bar buttons: Ready moves the bar, Solve fills the page, Next goes to the next page, Auto turns on auto-farm, and the dash hides the bar.">
+        <div class="mock-hud">
+          <div class="hud-slot">
+            <div class="mock-status">
+              <span class="mock-dot" aria-hidden="true"></span>
+              <span class="mock-status-text">Ready</span>
+            </div>
+            <div class="hud-callout">
+              <svg class="hud-arrow" width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="6" y1="1" x2="6" y2="19"/>
+                <polyline points="2.5 15.5 6 19.5 9.5 15.5"/>
+              </svg>
+              <span class="hud-callout-label">Move bar</span>
+            </div>
           </div>
-          <div class="demo-opts">
-            <div class="demo-opt"><span class="demo-opt-check"></span><span>Netflix</span></div>
-            <div class="demo-opt"><span class="demo-opt-check"></span><span>YouTube</span></div>
-            <div class="demo-opt"><span class="demo-opt-check"></span><span>None of these</span></div>
-          </div>
-          <div class="demo-q-foot">
-            <span id="demoSurveyMeta">Click Solve or Auto below to preview</span>
-            <span id="demoSurveyNext" class="demo-next">Next →</span>
-          </div>
-        </div>
 
-        <div class="pill-stage">
-          <div id="mockHud" class="mock-hud">
-            <button type="button" id="mockStatusBtn" class="mock-status-btn" aria-pressed="false" title="Drag handle">
-              <span id="mockDot" class="mock-dot"></span>
-              <span class="mock-collapsible">
-                <span id="mockStatusText" class="mock-status-text">Ready</span>
-              </span>
-            </button>
+          <span class="mock-divider" aria-hidden="true"></span>
 
-            <span class="mock-collapsible mock-divider" aria-hidden="true"></span>
-
-            <button type="button" id="mockSolveBtn" class="mock-collapsible mock-btn is-primary" aria-pressed="false">
+          <div class="hud-slot">
+            <div class="mock-btn is-primary">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
               <span>Solve</span>
-            </button>
-
-            <button type="button" id="mockStopBtn" class="mock-collapsible mock-btn is-stop is-hidden">
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-              <span>Stop</span>
-            </button>
-
-            <button type="button" id="mockNextBtn" class="mock-collapsible mock-btn" aria-pressed="false" style="margin-left: 2px;">
-              <span>Next</span>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-            </button>
-
-            <button type="button" id="mockAutoBtn" class="mock-collapsible mock-btn" aria-pressed="false" style="margin-left: 2px;">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
-              <span>Auto</span>
-            </button>
-
-            <button type="button" id="mockMinBtn" class="mock-min" aria-label="Minimize or expand preview bar" aria-pressed="false">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>
-            </button>
+            </div>
+            <div class="hud-callout">
+              <svg class="hud-arrow" width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="6" y1="1" x2="6" y2="19"/>
+                <polyline points="2.5 15.5 6 19.5 9.5 15.5"/>
+              </svg>
+              <span class="hud-callout-label">Fill page</span>
+            </div>
           </div>
 
-          <div class="hud-caption-row">
-            <p id="hudCaption" class="hud-caption" aria-live="polite">
-              <strong>Auto (Alt+F)</strong> solves questions and clicks Next automatically until the survey finishes.
-            </p>
-            <button type="button" id="resetHudDemoBtn" class="reset-btn">Reset</button>
+          <div class="hud-slot">
+            <div class="mock-btn">
+              <span>Next</span>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+            </div>
+            <div class="hud-callout">
+              <svg class="hud-arrow" width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="6" y1="1" x2="6" y2="19"/>
+                <polyline points="2.5 15.5 6 19.5 9.5 15.5"/>
+              </svg>
+              <span class="hud-callout-label">Next page</span>
+            </div>
+          </div>
+
+          <div class="hud-slot">
+            <div class="mock-btn is-auto">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+              <span>Auto</span>
+            </div>
+            <div class="hud-callout">
+              <svg class="hud-arrow" width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="6" y1="1" x2="6" y2="19"/>
+                <polyline points="2.5 15.5 6 19.5 9.5 15.5"/>
+              </svg>
+              <span class="hud-callout-label">Auto-farm</span>
+            </div>
+          </div>
+
+          <div class="hud-slot">
+            <div class="mock-min">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>
+            </div>
+            <div class="hud-callout">
+              <svg class="hud-arrow" width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="6" y1="1" x2="6" y2="19"/>
+                <polyline points="2.5 15.5 6 19.5 9.5 15.5"/>
+              </svg>
+              <span class="hud-callout-label">Hide</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1798,7 +1717,7 @@
     <!-- OPTIONAL SETTINGS -->
     <div class="section-divider">Optional Settings</div>
 
-    <!-- Saved Profile (Collapsible so beginners aren't hit with 11 fields right away) -->
+    <!-- Saved Profile -->
     <details id="step-profile" class="optional-card">
       <summary class="optional-summary">
         <div class="optional-summary-left">
@@ -1981,28 +1900,12 @@
       const progressReadout = document.getElementById('progressReadout');
       const progressFill = document.getElementById('progressFill');
 
-      const mockHud = document.getElementById('mockHud');
-      const mockDot = document.getElementById('mockDot');
-      const mockStatusText = document.getElementById('mockStatusText');
-      const mockSolveBtn = document.getElementById('mockSolveBtn');
-      const mockStopBtn = document.getElementById('mockStopBtn');
-      const mockNextBtn = document.getElementById('mockNextBtn');
-      const mockAutoBtn = document.getElementById('mockAutoBtn');
-      const mockMinBtn = document.getElementById('mockMinBtn');
-      const mockStatusBtn = document.getElementById('mockStatusBtn');
-      const resetHudDemoBtn = document.getElementById('resetHudDemoBtn');
-      const hudCaption = document.getElementById('hudCaption');
-      const demoOpts = Array.from(document.querySelectorAll('.demo-opt'));
-      const demoSurveyMeta = document.getElementById('demoSurveyMeta');
-      const demoSurveyNext = document.getElementById('demoSurveyNext');
-
       const CHECK_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
       const MINI_CHECK_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
 
       let bridgeConnected = false;
       let step1Done = false;
       let step2Done = false;
-      let mockMinimized = false;
 
       // Auto-expand Saved Profile when opened via Tampermonkey menu (#step-profile)
       function checkHashOpen() {
@@ -2047,77 +1950,6 @@
         dotStep2.innerHTML = step2Done ? MINI_CHECK_SVG : '2';
         chipStep2.classList.toggle('is-done', step2Done);
       }
-
-      // Interactive Floating Bar Preview
-      function updateDemoPreview(picked, metaText, lightNext) {
-        demoOpts.forEach((opt, i) => opt.classList.toggle('is-picked', picked.includes(i)));
-        demoSurveyMeta.textContent = metaText;
-        demoSurveyNext.classList.toggle('is-lit', Boolean(lightNext));
-      }
-
-      function setMockState(mode) {
-        mockMinimized = mode === 'minimize' ? !mockMinimized : false;
-        mockHud.classList.toggle('is-minimized', mockMinimized);
-        mockMinBtn.setAttribute('aria-pressed', String(mockMinimized));
-
-        if (mockMinimized) {
-          mockDot.className = 'mock-dot';
-          hudCaption.innerHTML = '<strong>Minimized:</strong> Tucks into a tiny corner dot. Click again anytime to expand.';
-          return;
-        }
-
-        mockSolveBtn.classList.remove('is-hidden');
-        mockStopBtn.classList.add('is-hidden');
-        mockAutoBtn.classList.remove('is-auto-on');
-        [mockStatusBtn, mockSolveBtn, mockNextBtn, mockAutoBtn].forEach((b) => b.setAttribute('aria-pressed', 'false'));
-
-        if (mode === 'status') {
-          mockStatusBtn.setAttribute('aria-pressed', 'true');
-          mockDot.className = 'mock-dot';
-          mockStatusText.textContent = 'Ready';
-          updateDemoPreview([], 'You can drag the bar anywhere on screen', false);
-          hudCaption.innerHTML = '<strong>Drag Handle:</strong> Grab the dot to move the bar out of the way. Green = ready, amber = working, red = paused.';
-        } else if (mode === 'solve') {
-          mockSolveBtn.setAttribute('aria-pressed', 'true');
-          mockDot.className = 'mock-dot is-working';
-          mockStatusText.textContent = 'Solving…';
-          updateDemoPreview([0, 1], 'Picked realistic answers automatically', false);
-          hudCaption.innerHTML = '<strong>Solve (Alt+A):</strong> Fills out every unanswered question on the current page without clicking Next.';
-        } else if (mode === 'next') {
-          mockNextBtn.setAttribute('aria-pressed', 'true');
-          mockDot.className = 'mock-dot';
-          mockStatusText.textContent = 'Clicked: Next';
-          updateDemoPreview([0, 1], 'Moving to the next question', true);
-          hudCaption.innerHTML = '<strong>Next (Alt+S):</strong> Finds and clicks Next, Continue, or Submit while ignoring Back buttons.';
-        } else if (mode === 'auto') {
-          mockAutoBtn.setAttribute('aria-pressed', 'true');
-          mockSolveBtn.classList.add('is-hidden');
-          mockStopBtn.classList.remove('is-hidden');
-          mockAutoBtn.classList.add('is-auto-on');
-          mockDot.className = 'mock-dot is-farming';
-          mockStatusText.textContent = 'Auto-Farm';
-          updateDemoPreview([0, 1], 'Solving → short pause → clicking Next', true);
-          hudCaption.innerHTML = '<strong>Auto-Farm (Alt+F):</strong> Hands-free mode. Solves, pauses naturally, clicks Next, and stops if a CAPTCHA appears.';
-        } else if (mode === 'stop') {
-          mockDot.className = 'mock-dot is-error';
-          mockStatusText.textContent = 'Stopped';
-          updateDemoPreview([], 'Paused immediately', false);
-          hudCaption.innerHTML = '<strong>Stop (Alt+X):</strong> Immediately stops typing, cancels requests, and turns Auto-Farm off.';
-        } else {
-          mockDot.className = 'mock-dot';
-          mockStatusText.textContent = 'Ready';
-          updateDemoPreview([], 'Click Solve or Auto below to preview', false);
-          hudCaption.innerHTML = '<strong>Auto (Alt+F)</strong> solves questions and clicks Next automatically until the survey finishes.';
-        }
-      }
-
-      mockStatusBtn.addEventListener('click', () => setMockState('status'));
-      mockSolveBtn.addEventListener('click', () => setMockState('solve'));
-      mockNextBtn.addEventListener('click', () => setMockState('next'));
-      mockAutoBtn.addEventListener('click', () => setMockState('auto'));
-      mockStopBtn.addEventListener('click', () => setMockState('stop'));
-      mockMinBtn.addEventListener('click', () => setMockState('minimize'));
-      resetHudDemoBtn.addEventListener('click', () => setMockState('ready'));
 
       // API Key Form
       toggleVisBtn.addEventListener('click', () => {
