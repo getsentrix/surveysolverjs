@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.7
+// @version      1.1.8
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.7';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.8';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -3155,13 +3155,64 @@
             blocks.push(rb);
         }
 
-        // D. Checkbox Groups
+        // D. Checkbox Groups (supports column-grouped Decipher grids as well as standard row/list groups)
         const checkboxes = queryAllInRoots(roots, 'input[type="checkbox"]')
             .filter(cb => isElementVisible(cb) && !handledInputs.has(cb) && !isHudElement(cb));
 
-        if (checkboxes.length >= 2) {
+        const colGroupTables = new Set();
+        for (const cb of checkboxes) {
+            const tbl = cb.closest('table');
+            if (!tbl || colGroupTables.has(tbl)) continue;
+            const settings = tbl.getAttribute('data-settings') || '';
+            const isColGrouped = /\bgroup-by-col\b/i.test(settings) ||
+                Boolean(tbl.querySelector('tr.row-col-legends th[scope="col"]') && tbl.querySelector('input[type="checkbox"].exclusive'));
+            if (isColGrouped) colGroupTables.add(tbl);
+        }
+
+        for (const tbl of colGroupTables) {
+            const tblCbs = checkboxes.filter(cb => !handledInputs.has(cb) && tbl.contains(cb));
+            const colMap = new Map();
+            for (const cb of tblCbs) {
+                const td = cb.closest('td, th');
+                const tr = cb.closest('tr');
+                if (!td || !tr) continue;
+                let colCursor = 0;
+                for (const cell of Array.from(tr.children)) {
+                    if (window.getComputedStyle(cell).display === 'none') continue;
+                    if (cell === td) break;
+                    colCursor += (cell.colSpan || 1);
+                }
+                if (!colMap.has(colCursor)) colMap.set(colCursor, []);
+                colMap.get(colCursor).push(cb);
+            }
+            const basePrompt = extractPromptAboveGroup(tbl, allVisibleInputs) || 'Please select all that apply.';
+            for (const [, colCbs] of colMap.entries()) {
+                if (colCbs.length < 2) continue;
+                const colHeader = getMatrixColumnHeaderForCell(colCbs[0]);
+                const choices = colCbs.map(inp => {
+                    handledInputs.add(inp);
+                    const rowText = extractMatrixRowPrompt(inp) || getLabelForInput(inp, findLabelForInput(inp)) || inp.value || '';
+                    const visTarget = inp.closest('td')?.querySelector('.fir-icon') || inp.closest('td.clickableCell, td') || findLabelForInput(inp) || inp;
+                    return {
+                        text: cleanOptionText(rowText),
+                        target: visTarget,
+                        label: null,
+                        input: inp,
+                        isChecked: inp.checked
+                    };
+                }).filter(c => c.text.length > 0);
+                if (choices.length >= 2) {
+                    const isAnswered = choices.some(c => c.isChecked);
+                    const prompt = colHeader ? `${basePrompt}\nItem / Column: ${colHeader}` : basePrompt;
+                    blocks.push({ type: 'choices', choices, isAnswered, prompt, element: choices[0].target });
+                }
+            }
+        }
+
+        const remainingCheckboxes = checkboxes.filter(cb => !handledInputs.has(cb));
+        if (remainingCheckboxes.length >= 2) {
             const cbContainerMap = new Map();
-            for (const cb of checkboxes) {
+            for (const cb of remainingCheckboxes) {
                 const isMatrixRow = Boolean(extractMatrixRowPrompt(cb));
                 let container = !isMatrixRow
                     ? cb.closest('.QuestionOuter, .QuestionBody, .cf-question, .cm-question, fieldset, [role="group"]')
@@ -5281,15 +5332,24 @@ RULES:
 
         let targetColStart = 0;
         for (const cell of Array.from(tr.children)) {
+            if (window.getComputedStyle(cell).display === 'none') continue;
             if (cell === td) break;
             targetColStart += (cell.colSpan || 1);
         }
 
-        const headerRows = Array.from(table.querySelectorAll('thead tr, tr'));
-        for (const hRow of headerRows) {
+        const headerRows = [];
+        for (const hRow of Array.from(table.querySelectorAll('thead tr, tr'))) {
             if (hRow === tr) break;
+            if (window.getComputedStyle(hRow).display === 'none') continue;
+            if (hRow.classList.contains('rowGroup') || hRow.querySelectorAll('th, td').length < 2) continue;
+            headerRows.push(hRow);
+        }
+        // Prefer the most specific bottom-most header row above the data row (skipping broad colGroup banners first)
+        for (let i = headerRows.length - 1; i >= 0; i--) {
+            const hRow = headerRows[i];
             let cursor = 0;
             for (const hCell of Array.from(hRow.children)) {
+                if (window.getComputedStyle(hCell).display === 'none') continue;
                 const span = hCell.colSpan || 1;
                 if (targetColStart >= cursor && targetColStart < cursor + span) {
                     const txt = (hCell.innerText || '').replace(/\s+/g, ' ').trim();
