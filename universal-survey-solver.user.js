@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.10
+// @version      1.1.11
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.10';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.11';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -1629,15 +1629,15 @@
         const promptSample = blocks
             .slice(0, 4)
             .map(b => {
-                const p = (b.prompt || '').replace(/\s+/g, ' ').trim();
-                const edge = p.length > 90 ? `${p.slice(0, 45)}..${p.slice(-45)}` : p;
-                return `${b.type}:${edge}:${isBlockAnswered(b) ? '1' : '0'}`;
+                const p = (b.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+                const firstKey = b.choices?.[0]?.input?.name || b.choices?.[0]?.input?.id || b.rows?.[0]?.input?.name || b.element?.id || '';
+                return `${b.type}:${firstKey}:${p}:${isBlockAnswered(b) ? '1' : '0'}`;
             })
             .join('|');
         const nextBtn = findNextOrSubmitButton(roots);
         const nextLabel = nextBtn ? (nextBtn.innerText || nextBtn.value || nextBtn.closest('[button-title]')?.getAttribute('button-title') || nextBtn.id || 'next').trim().slice(0, 20) : 'none';
         const bodySnippet = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 140);
-        return `${location.origin}${location.pathname}#${blocks.length}#${nextLabel}#${promptSample || bodySnippet}`;
+        return `${location.origin}${location.pathname}${location.hash}#${blocks.length}#${nextLabel}#${promptSample || bodySnippet}`;
     }
 
     async function waitForPageTransition(prevSignature, maxWaitMs = 4500, prevUrl = location.href) {
@@ -2106,7 +2106,7 @@
                 // Guard against infinite retry loops on validation-blocked pages (persists across full page reloads)
                 const sigBeforeClick = getPageSignature(postRoots, postBlocks);
                 const maxSameSigAttempts = stillUnanswered.length > 0 ? 2 : 3;
-                if (sigBeforeClick === lastStuckSignature) {
+                if (!solvedAnyOnPage && sigBeforeClick === lastStuckSignature) {
                     sameSignatureClicks++;
                     if (sameSignatureClicks >= maxSameSigAttempts) {
                         writeReloadStuckState('', 0);
@@ -3880,7 +3880,7 @@
 RULES:
 1. Obey any trap/attention-check instructions strictly.
 2. Keep demographic/brand/opinion answers strictly consistent with your persona and prior answers.
-3. For SINGLE pick [index]; for MULTI pick 1-2 realistic indices (or exact matches for factual checks). Avoid "Other"/"None" when standard brands exist.
+3. For SINGLE pick [index]; for MULTI pick 1-2 realistic indices (or exact matches for factual checks). Avoid "Other"/"None" when standard brands exist. For rating/opinion scales (1-5, 1-10, agree/disagree), pick a realistic varied mid-to-positive rating rather than defaulting to [0].
 4. Output strictly JSON with NO extra keys: {"answers": [[idx], [idx], ...]} containing exactly ${llmItems.length} arrays.`;
 
             const maxTokens = Math.max(120, llmItems.length * 16 + 40);
@@ -5124,13 +5124,14 @@ RULES:
 1. Obey trap/attention-check instructions strictly (highest priority).
 2. Stay strictly consistent with your persona and prior answers in this survey.
 3. Avoid "Other"/"None"/"Don't know" when standard well-known brands are listed.
-4. Output strictly JSON with NO explanations or extra keys: {"selected": [0]}`;
+4. For rating/opinion scales (1-5, 1-10, agree/disagree, satisfaction), choose a realistic varied mid-to-positive rating (e.g. 6-9 on 1-10, 3-4 on 1-5) matching a genuine customer rather than defaulting to index 0.
+5. Output strictly JSON with NO explanations or extra keys: {"selected": [<0-based index>]}`;
 
             const body = {
                 contents: [{ parts: [{ text: userContent }] }],
                 systemInstruction: { parts: [{ text: systemInstruction }] },
                 generationConfig: {
-                    temperature: 0.1,
+                    temperature: 0.35,
                     maxOutputTokens: 80,
                     responseMimeType: "application/json"
                 }
