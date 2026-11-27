@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.24
+// @version      1.1.25
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -44,7 +44,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.24';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.25';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2688,6 +2688,10 @@
             return true;
         }
         if (node instanceof SVGElement && node.tagName.toLowerCase() !== 'svg') return false;
+        try {
+            const st = window.getComputedStyle(node);
+            if (st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity) === 0) return false;
+        } catch (e) {}
         if (node.classList) {
             for (const tok of node.classList) {
                 if (/^(?:not|non|un|de)[_-]?(?:selected|checked|active)$/i.test(tok)) continue;
@@ -3356,6 +3360,40 @@
                         blocks.push({ type: 'choices', choices, isAnswered, prompt, element: choices[0].target });
                     }
                 }
+            }
+        }
+
+        // D1b. Decipher ATM1D Button Widgets (.sq-atm1d-widget, including single-button agreements)
+        const atm1dWidgets = queryAllInRoots(roots, '.sq-atm1d-widget')
+            .filter(w => isElementVisible(w) && !isHudElement(w));
+        for (const w of atm1dWidgets) {
+            const btns = Array.from(w.querySelectorAll('li.sq-atm1d-button'))
+                .filter(b => isElementVisible(b) && !isHudElement(b));
+            if (btns.length === 0) continue;
+            const qWrap = w.closest('.question') || w.parentElement;
+            qWrap?.querySelectorAll('input').forEach(inp => handledInputs.add(inp));
+            btns.forEach(b => handledCardElements.add(b));
+            const choices = btns.map(b => {
+                const legendText = b.querySelector('.sq-atm1d-legend')?.innerText || '';
+                const text = cleanOptionText(legendText || b.innerText);
+                const isChecked = b.getAttribute('aria-checked') === 'true' ||
+                    b.classList.contains('selected') ||
+                    b.classList.contains('sq-atm1d-selected');
+                return {
+                    text,
+                    target: b,
+                    ariaEl: b,
+                    label: null,
+                    input: null,
+                    isChecked
+                };
+            }).filter(c => c.text.length > 0);
+            if (choices.length >= 1) {
+                const isAnswered = choices.some(c => c.isChecked);
+                const prompt = cleanOptionText(qWrap?.querySelector('.question-text')?.innerText) ||
+                    extractPromptAboveGroup(w, allVisibleInputs) ||
+                    'Select an option.';
+                blocks.push({ type: 'choices', choices, isAnswered, prompt, element: choices[0].target });
             }
         }
 
