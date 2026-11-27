@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.2
+// @version      1.1.3
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -42,7 +42,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.2';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.3';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2382,7 +2382,9 @@
             return txt.length > 0 && !/^(select|choose|please select|--|click to select)/i.test(txt);
         }
         if (b.type === 'range') {
-            return touchedElements.has(b.element);
+            return touchedElements.has(b.element) ||
+                Boolean(b.element.closest?.('.activated, [class*="activated" i]')) ||
+                Boolean(b.element.querySelector?.('.handle.selected, [class*="handle" i][class*="selected" i]'));
         }
         if (b.type === 'text') {
             const hasText = (b.element.value || b.element.textContent || '').trim().length > 0;
@@ -3247,12 +3249,28 @@
             if (r.closest('.video__container, #sproutvideo-player-container, [class*="video-player" i], [class*="audio-player" i]') && !r.closest('[class*="question" i]')) return true;
             return false;
         };
-        const ranges = queryAllInRoots(roots, 'input[type="range"]')
-            .filter(r => isElementVisible(r) && !r.disabled && !handledInputs.has(r) && !isHudElement(r) && !isMediaControlSlider(r));
+        const ranges = queryAllInRoots(roots, 'input[type="range"], [role="slider"]')
+            .filter(r => isElementVisible(r) && !r.disabled && r.getAttribute('aria-disabled') !== 'true' && !handledInputs.has(r) && !isHudElement(r) && !isMediaControlSlider(r));
         for (const r of ranges) {
             handledInputs.add(r);
-            const isAnswered = touchedElements.has(r);
-            const prompt = extractPromptAboveGroup(r, allVisibleInputs) || findPromptAboveElement(r) || extractRowLabelForInput(r) || 'Select a rating on the slider.';
+            const isAnswered = touchedElements.has(r) ||
+                Boolean(r.closest('.activated, [class*="activated" i]')) ||
+                Boolean(r.querySelector('.handle.selected, [class*="handle" i][class*="selected" i]'));
+            const basePrompt = extractPromptAboveGroup(r, allVisibleInputs) || findPromptAboveElement(r) || '';
+            const itemLabel = getAriaLabelledByText(r) || extractRowLabelForInput(r) || '';
+            let scaleLegend = '';
+            const qScope = r.closest('.QuestionBody, .QuestionOuter, [class*="question" i]');
+            if (qScope) {
+                const lbls = Array.from(qScope.querySelectorAll('.labels-container ul.labels li')).map(li => (li.innerText || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+                const nums = Array.from(qScope.querySelectorAll('.labels-container ul.numbers li')).map(li => (li.innerText || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+                if (lbls.length > 0 && lbls.length === nums.length) {
+                    scaleLegend = `Scale: ${nums.map((n, i) => `${n} = ${lbls[i]}`).join(' | ')}`;
+                } else if (lbls.length > 0) {
+                    scaleLegend = `Scale labels: ${lbls.join(' | ')}`;
+                }
+            }
+            const prompt = [basePrompt, itemLabel && !basePrompt.includes(itemLabel) ? `Item: ${itemLabel}` : '', scaleLegend]
+                .filter(Boolean).join('\n') || 'Select a rating on the slider.';
             blocks.push({ type: 'range', element: r, isAnswered, prompt });
         }
 
@@ -3866,10 +3884,15 @@ RULES:
     async function executeRangeSlider(rangeEl, promptText) {
         try {
             updateHUD('Adjusting slider...', 'working');
-            const min = parseFloat(rangeEl.min) || 0;
-            const max = parseFloat(rangeEl.max) || 100;
-            const step = parseFloat(rangeEl.step) || 1;
-            const startVal = parseFloat(rangeEl.value);
+            const isNativeRange = rangeEl.tagName === 'INPUT';
+            const rawMin = isNativeRange ? rangeEl.min : rangeEl.getAttribute('aria-valuemin');
+            const rawMax = isNativeRange ? rangeEl.max : rangeEl.getAttribute('aria-valuemax');
+            const rawStep = isNativeRange ? rangeEl.step : (rangeEl.getAttribute('step') || rangeEl.getAttribute('aria-step'));
+            const rawStart = isNativeRange ? rangeEl.value : rangeEl.getAttribute('aria-valuenow');
+            const min = (rawMin !== null && rawMin !== '' && !isNaN(Number(rawMin))) ? Number(rawMin) : 0;
+            const max = (rawMax !== null && rawMax !== '' && !isNaN(Number(rawMax))) ? Number(rawMax) : 100;
+            const step = (rawStep !== null && rawStep !== '' && !isNaN(Number(rawStep)) && Number(rawStep) > 0) ? Number(rawStep) : 1;
+            const startVal = (rawStart !== null && rawStart !== '' && !isNaN(Number(rawStart))) ? Number(rawStart) : NaN;
             const currentVal = isNaN(startVal) ? (min + max) / 2 : startVal;
 
             const userContent = `Survey Prompt:\n${promptText}\nSlider Range: min=${min}, max=${max}, step=${step}`;
@@ -3889,37 +3912,54 @@ RULES:
             const span = (max - min) || 1;
             const startRatio = Math.max(0, Math.min(1, (currentVal - min) / span));
             const endRatio = Math.max(0, Math.min(1, (val - min) / span));
-            const startX = rect.left + rect.width * startRatio;
-            const endX = rect.left + rect.width * endRatio;
-            const midY = rect.top + rect.height / 2 + (Math.random() - 0.5) * Math.min(6, rect.height * 0.3);
+            const clampX = (x) => Math.max(rect.left + 4, Math.min(rect.right - 4, x));
+            const startX = clampX(rect.left + rect.width * startRatio);
+            const endX = clampX(rect.left + rect.width * endRatio);
+            const midY = rect.top + rect.height / 2 + (Math.random() - 0.5) * Math.min(4, rect.height * 0.3);
+            const mkMouseOpts = (x, y) => ({
+                bubbles: true, cancelable: true, composed: true,
+                clientX: x, clientY: y, pageX: x + window.scrollX, pageY: y + window.scrollY
+            });
 
             await movePointerWithTrajectory(startX, midY, rangeEl);
             if (abortRequested) return;
-            try { rangeEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, composed: true, clientX: startX, clientY: midY })); } catch (e) {}
-            try { rangeEl.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true, clientX: startX, clientY: midY })); } catch (e) {}
+            try { rangeEl.dispatchEvent(new PointerEvent('pointerdown', mkMouseOpts(startX, midY))); } catch (e) {}
+            try { rangeEl.dispatchEvent(new MouseEvent('mousedown', mkMouseOpts(startX, midY))); } catch (e) {}
             try { rangeEl.focus({ preventScroll: true }); } catch (e) {}
 
             const dragSteps = randomBetween(4, 7);
-            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            const setter = isNativeRange ? Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set : null;
             for (let s = 1; s <= dragSteps; s++) {
                 if (abortRequested) return;
                 const t = s / dragSteps;
                 const curStepVal = currentVal + (val - currentVal) * t;
                 const snapped = s === dragSteps ? val : (step > 0 ? Math.round((curStepVal - min) / step) * step + min : curStepVal);
                 const px = startX + (endX - startX) * t;
-                const py = midY + (Math.random() - 0.5) * 3;
+                const py = midY + (Math.random() - 0.5) * 2;
                 mouseX = px;
                 mouseY = py;
-                if (setter) setter.call(rangeEl, String(snapped));
-                else rangeEl.value = String(snapped);
-                rangeEl.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, composed: true, clientX: px, clientY: py }));
-                rangeEl.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, composed: true, clientX: px, clientY: py }));
-                rangeEl.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                if (isNativeRange) {
+                    if (setter) setter.call(rangeEl, String(snapped));
+                    else rangeEl.value = String(snapped);
+                }
+                const moveOpts = mkMouseOpts(px, py);
+                try { rangeEl.dispatchEvent(new PointerEvent('pointermove', moveOpts)); } catch (e) {}
+                try { rangeEl.dispatchEvent(new MouseEvent('mousemove', moveOpts)); } catch (e) {}
+                try { document.dispatchEvent(new MouseEvent('mousemove', moveOpts)); } catch (e) {}
+                if (isNativeRange) {
+                    rangeEl.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                }
                 await abortableSleep(randomBetween(28, 62));
             }
-            try { rangeEl.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, composed: true, clientX: endX, clientY: midY })); } catch (e) {}
-            try { rangeEl.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, composed: true, clientX: endX, clientY: midY })); } catch (e) {}
-            rangeEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+            const endOpts = mkMouseOpts(endX, midY);
+            try { rangeEl.dispatchEvent(new PointerEvent('pointerup', endOpts)); } catch (e) {}
+            try { rangeEl.dispatchEvent(new MouseEvent('mouseup', endOpts)); } catch (e) {}
+            try { document.dispatchEvent(new MouseEvent('mouseup', endOpts)); } catch (e) {}
+            if (!isNativeRange) {
+                try { rangeEl.dispatchEvent(new MouseEvent('click', endOpts)); } catch (e) {}
+            } else {
+                rangeEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+            }
             try { rangeEl.blur(); } catch (e) {}
 
             touchedElements.add(rangeEl);
