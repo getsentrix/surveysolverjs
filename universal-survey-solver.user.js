@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.23
+// @version      1.1.24
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -44,7 +44,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.23';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.24';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2620,6 +2620,16 @@
         if (b.type === 'rank_sort') {
             return b.cards.filter(c => c.classList.contains('sq-ranksort-card-dropped')).length >= b.requiredRanks;
         }
+        if (b.type === 'card_rating') {
+            if (b.element.getAttribute('data-atend') === 'true') return true;
+            const progBars = b.element.querySelectorAll('ul.sq-cardrating-progress > li.sq-cardrating-bar');
+            if (progBars.length > 0 && Array.from(progBars).every(bar => bar.getAttribute('data-selected') === 'true')) return true;
+            if (b.qaRadios?.length > 0) {
+                const answeredNames = new Set(b.qaRadios.filter(r => r.checked).map(r => r.name));
+                if (answeredNames.size >= b.cards.length) return true;
+            }
+            return false;
+        }
         if (b.type === 'text') {
             const hasText = (b.element.value || b.element.textContent || '').trim().length > 0;
             if (!hasText) return false;
@@ -3436,6 +3446,40 @@
             });
         }
 
+        // D3. Decipher Card-Rating Carousel (.sq-cardrating-widget)
+        const cardRatings = queryAllInRoots(roots, '.sq-cardrating-widget')
+            .filter(w => isElementVisible(w) && !isHudElement(w));
+        for (const w of cardRatings) {
+            const cards = Array.from(w.querySelectorAll('ul.sq-cardrating-cards > li.sq-cardrating-card'))
+                .sort((a, b) => (parseInt(a.getAttribute('data-ordinal') || '0', 10) - parseInt(b.getAttribute('data-ordinal') || '0', 10)));
+            const buttons = Array.from(w.querySelectorAll('ul.sq-cardrating-buttons > li.sq-cardrating-button'))
+                .sort((a, b) => (parseInt(a.getAttribute('data-index') || '0', 10) - parseInt(b.getAttribute('data-index') || '0', 10)));
+            if (cards.length < 1 || buttons.length < 2) continue;
+
+            const qWrap = w.closest('.question') || w.parentElement;
+            const qaRadios = Array.from(qWrap?.querySelectorAll('.sq-cardrating-qa-view input[type="radio"]') || []);
+            qaRadios.forEach(r => handledInputs.add(r));
+            cards.forEach(c => handledCardElements.add(c));
+            buttons.forEach(b => handledCardElements.add(b));
+
+            const progBars = Array.from(w.querySelectorAll('ul.sq-cardrating-progress > li.sq-cardrating-bar'));
+            const isAnswered = w.getAttribute('data-atend') === 'true' ||
+                (progBars.length > 0 && progBars.every(bar => bar.getAttribute('data-selected') === 'true')) ||
+                (qaRadios.length > 0 && new Set(qaRadios.filter(r => r.checked).map(r => r.name)).size >= cards.length);
+            const prompt = cleanOptionText(qWrap?.querySelector('.question-text')?.innerText) ||
+                extractPromptAboveGroup(w, allVisibleInputs) ||
+                'Rate each item.';
+            blocks.push({
+                type: 'card_rating',
+                element: w,
+                cards,
+                buttons,
+                qaRadios,
+                isAnswered,
+                prompt
+            });
+        }
+
         // E. Custom Div / Card Groups (supports wrapped [role="button"] / Tailwind / FontAwesome choice cards, excludes nav bars & overlaps)
         const navActionLabelRx = /^(?:[\s«»‹›<>→←⬅➡❯❮]+)?(next(?:\s*(?:page|step|question))?|continue|proceed|forward|submit|back|go\s*back|previous(?:\s*(?:page|step|question))?|prev|return|cancel|close|exit|finish|done|start(?:\s*survey)?|begin|save(?:\s*(?:&|and)\s*continue)?|reset(?:\s*form)?|clear(?:\s*(?:form|all|selection|answers?))?|skip(?:\s*(?:question|survey))?|i\s*can'?t\s*answer(?:\s*this\s*question)?|contact\s*(?:form\s*)?owner|edit\s*(?:this\s*)?form)(?:[\s«»‹›<>→←⬅➡❯❮!]+)?$/i;
         const formNavControlRx = /^(?:back|go\s*back|previous(?:\s*(?:page|step|question))?|prev|next(?:\s*(?:page|step|question))?|submit|clear\s*form|reset\s*form|edit\s*this\s*form|contact\s*form\s*owner)$/i;
@@ -3888,6 +3932,77 @@ RULES:
         }
     }
 
+    async function solveCardRating(block, fullPrompt) {
+        if (abortRequested) return;
+        const cardItems = block.cards.map((c, i) => ({
+            el: c,
+            ordinal: i,
+            text: cleanOptionText(c.querySelector('.sq-cardrating-content')?.innerText || c.innerText)
+        }));
+        const buttonItems = block.buttons.map((b, i) => ({
+            el: b,
+            index: i,
+            text: cleanOptionText(b.querySelector('.sq-cardrating-content')?.innerText || b.innerText)
+        }));
+        if (cardItems.length === 0 || buttonItems.length < 2) return;
+
+        const optsText = buttonItems.map((b, i) => `[${i}] "${b.text}"`).join(', ');
+        const cardsText = cardItems.map((c, i) => `Card ${i + 1}: "${c.text}"`).join('\n');
+        const userContent = `Question: ${fullPrompt}\n\nRating Choices: ${optsText}\n\nCards to rate:\n${cardsText}`;
+        const systemInstruction = `${buildConsistencySystemPrefix()}You are an authentic adult survey participant rating ${cardItems.length} items.
+RULES:
+1. Stay consistent with your persona and prior answers; vary ratings realistically across items where appropriate.
+2. Pick one 0-based choice index [0..${buttonItems.length - 1}] for each card in order.
+3. Output strictly JSON: {"selections": [<idx0>, <idx1>, ...]}`;
+
+        updateHUD(`Rating ${cardItems.length} cards...`, 'working');
+        let picks = [];
+        try {
+            const res = await callGeminiJSON(userContent, systemInstruction, Math.max(100, cardItems.length * 16 + 40));
+            const raw = Array.isArray(res?.selections) ? res.selections : (Array.isArray(res) ? res : []);
+            picks = raw.map(v => parseInt(v, 10));
+        } catch (err) {
+            if (abortRequested) return;
+            console.warn('[Gemini Typer] CardRating fallback:', err.message);
+        }
+
+        const midIdx = Math.min(buttonItems.length - 1, Math.floor(buttonItems.length / 2));
+        const chosenSummary = [];
+        for (let step = 0; step < cardItems.length; step++) {
+            if (abortRequested) return;
+            if (block.element.getAttribute('data-atend') === 'true') break;
+
+            // Determine active card ordinal (position="0" or active progress bar)
+            let activeIdx = cardItems.findIndex(c => c.el.getAttribute('data-position') === '0');
+            if (activeIdx === -1) {
+                const bars = Array.from(block.element.querySelectorAll('ul.sq-cardrating-progress > li.sq-cardrating-bar'));
+                const barIdx = bars.findIndex(bar => bar.getAttribute('data-active') === 'true');
+                activeIdx = barIdx !== -1 ? barIdx : step;
+            }
+            const pickIdx = (!isNaN(picks[activeIdx]) && picks[activeIdx] >= 0 && picks[activeIdx] < buttonItems.length)
+                ? picks[activeIdx]
+                : midIdx;
+            const targetBtn = buttonItems[pickIdx].el;
+
+            // Wait briefly for Knockout carousel animation to mark buttons clickable again
+            const waitStart = Date.now();
+            while (!abortRequested && (Date.now() - waitStart) < 1500) {
+                if (targetBtn.getAttribute('data-clickable') === 'true' && targetBtn.getAttribute('data-disabled') !== 'true') break;
+                await abortableSleep(80);
+            }
+            if (abortRequested) return;
+
+            chosenSummary.push(`${cardItems[activeIdx]?.text || `Card ${activeIdx + 1}`}: ${buttonItems[pickIdx].text}`);
+            await triggerNativeClick(targetBtn, null, null);
+            await abortableSleep(randomBetween(420, 620));
+        }
+
+        if (!abortRequested && chosenSummary.length > 0) {
+            recordSessionAnswer(block.prompt || fullPrompt, chosenSummary.slice(0, 4).join(' | '));
+            updateHUD(`Rated ${chosenSummary.length} cards`, 'active', 2500);
+        }
+    }
+
     async function solveSingleBlock(block, sharedConcept = '', rawSelection = '', roots = null) {
         if (abortRequested) return;
         const cleanShared = sharedConcept && !(block.prompt || '').includes(sharedConcept) ? sharedConcept : '';
@@ -3914,6 +4029,8 @@ RULES:
             await solveMatrixGrid(block, fullPrompt);
         } else if (block.type === 'rank_sort') {
             await solveRankSort(block, fullPrompt);
+        } else if (block.type === 'card_rating') {
+            await solveCardRating(block, fullPrompt);
         } else if (block.type === 'number_grid') {
             await solveNumberGrid(block, fullPrompt);
         } else if (block.type === 'text_list') {
