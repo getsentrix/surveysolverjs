@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.22
+// @version      1.1.23
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -44,7 +44,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.22';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.23';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -2275,7 +2275,7 @@
         const roots = cachedRoots || collectDocumentRoots();
         const rawCandidates = queryAllInRoots(
             roots,
-            '#btn_continue, #NextButton, #cm-NextButton, #movenextbtn, #movesubmitbtn, #sg_NextButton, #sg_SubmitButton, input[name="sGizmoNextButton"], input[name="sGizmoSubmitButton"], .sg-next-button, .sg-submit-button, .cf-navigation-next, .cf-navigation__button, .cm-navigation-next-button, #submitQuestion, #next, .NextButton, [data-test-id="ps-qualification-next-button"] button, [data-test-id="ps-start-survey-btn"] button, [data-test-id="ps-common-actions-button"], [data-testid="confirm-selection"], [data-testid="submit-text"], [data-testid*="confirm" i][tabindex="0"], [data-testid*="next" i][tabindex="0"], [data-testid*="continue" i][tabindex="0"], [data-testid*="submit" i][tabindex="0"], input[type="submit"], button[type="submit"], input[type="button"], input[type="image"], button, a[role="button"], [role="button"], a.btn, a[id*="submit" i], a[id*="next" i], a[id*="continue" i], a[class*="next" i], a[class*="continue" i]'
+            '#btn_continue, #NextButton, #cm-NextButton, #movenextbtn, #movesubmitbtn, #sg_NextButton, #sg_SubmitButton, input[name="sGizmoNextButton"], input[name="sGizmoSubmitButton"], .sg-next-button, .sg-submit-button, .cf-navigation-next, .cf-navigation__button, .cm-navigation-next-button, #submitQuestion, #next, .NextButton, [data-test-id="ps-qualification-next-button"] button, [data-test-id="ps-start-survey-btn"] button, [data-test-id="ps-common-actions-button"], [data-testid="confirm-selection"], [data-testid="submit-text"], [data-testid*="confirm" i][tabindex="0"], [data-testid*="next" i][tabindex="0"], [data-testid*="continue" i][tabindex="0"], [data-testid*="submit" i][tabindex="0"], input[type="submit"], button[type="submit"], input[type="button"], input[type="image"], button, a[role="button"], [role="button"], a.btn, a.button, a[class*="button" i], a[id*="submit" i], a[id*="next" i], a[id*="continue" i], a[class*="next" i], a[class*="continue" i]'
         );
 
         const knownForwardIds = /^(next\d*|continue|submit|btn_continue|NextButton|cm-NextButton|movenextbtn|movesubmitbtn|sg_NextButton|sg_SubmitButton|sGizmoNextButton|sGizmoSubmitButton|submitQuestion|submitButton|submitBtn|submit_btn|btnSubmit|next_button|forwardbutton|btnNext|nextBtn|next-button|continue-button|submit-button|continue_btn|next_btn|ps-qualification-next-button|ps-start-survey-btn|ps-common-actions-button|confirm-selection|submit-text)$/i;
@@ -6158,17 +6158,18 @@ RULES:
         }
 
         if (abortRequested || !autoFarmActive) return false;
-        const action = String(parsed?.action || 'none').toLowerCase();
-        const indices = Array.isArray(parsed?.indices)
-            ? parsed.indices.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n >= 0 && n < candidates.length).slice(0, 3)
+        const payload = Array.isArray(parsed) ? (parsed[0] || {}) : (parsed || {});
+        const action = String(payload?.action || 'none').toLowerCase();
+        const indices = Array.isArray(payload?.indices)
+            ? payload.indices.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n >= 0 && n < candidates.length).slice(0, 3)
             : [];
 
         const actionsTaken = [];
-        if (action === 'type' && indices.length > 0 && typeof parsed?.text === 'string' && parsed.text.trim()) {
+        if (action === 'type' && indices.length > 0 && typeof payload?.text === 'string' && payload.text.trim()) {
             const targetCand = candidates[indices[0]];
             const inp = targetCand.input || targetCand.el;
-            await executeTextTypingWithValue(inp, parsed.text.trim());
-            actionsTaken.push({ index: indices[0], type: 'type', desc: targetCand.desc, text: parsed.text.trim() });
+            await executeTextTypingWithValue(inp, payload.text.trim());
+            actionsTaken.push({ index: indices[0], type: 'type', desc: targetCand.desc, text: payload.text.trim() });
             if (indices.length > 1) {
                 for (const idx of indices.slice(1)) {
                     const nextCand = candidates[idx];
