@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.26
+// @version      1.1.27
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -44,7 +44,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.26';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.27';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -5304,8 +5304,13 @@ RULES:
         if (slashCharMatch) applyMaxCharsCap(parseInt(slashCharMatch[1], 10));
         const currentLen = (target.isContentEditable ? target.textContent : target.value || '').trim().length;
         if (currentLen === 0) {
+            const bareCounterMatch = scanText.match(/(?:^|\s)0\s*\/\s*(\d{2,4})(?:\s|$)/);
+            if (bareCounterMatch) applyMaxCharsCap(parseInt(bareCounterMatch[1], 10));
             const remCharMatch = scanText.match(/\b(\d+)\s*(?:characters?|chars?)\s*(?:remaining|left)\b/i);
             if (remCharMatch) applyMaxCharsCap(parseInt(remCharMatch[1], 10));
+        }
+        if (/questmindshare/i.test(location.hostname) && minChars < 100) {
+            applyMaxCharsCap(100);
         }
 
         const minWordMatch = scanText.match(/(?:minimum|at\s+least)\s+(?:of\s+)?(\d+)\s*words?\b/i);
