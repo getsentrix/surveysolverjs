@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.40
+// @version      1.1.41
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -589,7 +589,7 @@
             const u = new URL(urlStr, location.href);
             const full = `${u.hostname}${u.pathname}`.toLowerCase();
             if (isOnWelcomePage()) return true;
-            if (/(?:^|\.)(?:gain\.gg|primeearn\.com|primeopinions?\.com|freecash\.com|heypiggy\.com|brandedsurveys\.com|attapoll\.com)$/i.test(u.hostname) &&
+            if (/(?:^|\.)(?:gain\.gg|primeearn\.com|primeopinions?\.com|freecash\.com|heypiggy\.com|brandedsurveys\.com|attapoll\.com|cpx-research\.com)$/i.test(u.hostname) &&
                 /^\/(?:$|surveys|offers|earn|cashout|withdraw|rewards|profile|account)/i.test(u.pathname)) {
                 return true;
             }
@@ -808,6 +808,9 @@
             if (isPanelReturnOrUtilityUrl(location.href)) return true;
             const primeCards = queryAllInRoots(docRoots, '.list-item.survey-item[data-test-id^="ps-survey-"]').filter(el => isElementVisible(el));
             if (primeCards.length >= 2) return true;
+            // CPX Research survey dashboard: ".point-card" cards with "Choose a survey" headline
+            const cpxCards = queryAllInRoots(docRoots, '.point-card[id^="survey_card_"]').filter(el => isElementVisible(el));
+            if (cpxCards.length >= 2) return true;
         } catch (e) {}
         return false;
     }
@@ -848,6 +851,27 @@
             const reward = rewardM ? parseFloat((rewardM[1] || rewardM[2] || '0').replace(/,/g, '')) : 0;
             const score = (reward / mins) + (/\bnew\b/i.test(txt) ? 2 : 0);
             cards.push({ el, id: id || txt.slice(0, 60), text: txt, score });
+        }
+
+        // CPX Research survey dashboard: .point-card with onclick="update_survey_details_clicked('ID')"
+        if (cards.length === 0) {
+            const cpxCards = queryAllInRoots(roots, '.point-card[id^="survey_card_"]')
+                .filter(el => isElementVisible(el) && !isHudElement(el));
+            for (const el of cpxCards) {
+                if (seen.has(el)) continue;
+                seen.add(el);
+                const cardId = (el.id || '').replace('survey_card_', '') || '';
+                const txt = (el.innerText || '').replace(/\s+/g, ' ').trim();
+                const payoutEl = el.querySelector('h4');
+                const payoutM = payoutEl ? (payoutEl.textContent || '').match(/\+?\s*(\d+(?:,\d{3})*)/i) : null;
+                const reward = payoutM ? parseFloat(payoutM[1].replace(/,/g, '')) : 0;
+                const timeEl = el.querySelector('.time h5');
+                const timeM = timeEl ? (timeEl.textContent || '').match(/~?\s*(\d+)/i) : null;
+                const mins = timeM ? Math.max(1, parseInt(timeM[1], 10)) : 12;
+                const starCount = el.querySelectorAll('.stars-checked').length;
+                const score = (reward / mins) + (starCount >= 4 ? 2 : 0);
+                cards.push({ el, id: cardId || txt.slice(0, 60), text: txt, score });
+            }
         }
 
         if (cards.length === 0) {
