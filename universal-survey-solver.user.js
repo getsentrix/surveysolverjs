@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.27
+// @version      1.1.28
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -843,6 +843,28 @@
         }
 
         if (cards.length === 0) {
+            const gainCards = queryAllInRoots(roots, 'a[href*="/survey-clk/"]')
+                .filter(el => isElementVisible(el) && !isHudElement(el));
+            for (const el of gainCards) {
+                if (seen.has(el)) continue;
+                seen.add(el);
+                const href = el.getAttribute('href') || '';
+                const txt = (el.innerText || '').replace(/\s+/g, ' ').trim();
+                const minM = txt.match(/\b(\d+)\s*min\b/i);
+                const mins = minM ? Math.max(1, parseInt(minM[1], 10)) : 12;
+                const hrefRewardM = href.match(/\/survey-clk\/[^/]+\/[^/]+\/[^/]+\/(\d+(?:\.\d+)?)(?:[/?#]|$)/i);
+                const rewardNodes = Array.from(el.querySelectorAll('[class*="coins" i], [class*="reward" i], [class*="payout" i]'));
+                const rewardTxt = rewardNodes.map(n => (n.textContent || '').trim()).find(t => /^\d+(?:,\d{3})*(?:\.\d+)?$/.test(t)) || '';
+                const trailingNumM = txt.replace(/\b\d+\s*min\b/ig, ' ').match(/\b(\d+(?:,\d{3})*(?:\.\d+)?)\b/);
+                const rewardRaw = rewardTxt || (hrefRewardM ? hrefRewardM[1] : (trailingNumM ? trailingNumM[1] : '0'));
+                const reward = parseFloat(String(rewardRaw).replace(/,/g, '')) || 0;
+                const idMatch = href.match(/\/survey-clk\/([^/?#]+\/\d+)/i);
+                const id = idMatch ? idMatch[1] : (href || txt.slice(0, 60));
+                cards.push({ el, id, text: txt, score: reward / mins });
+            }
+        }
+
+        if (cards.length === 0) {
             const genericCandidates = queryAllInRoots(
                 roots,
                 'a, button, [role="button"], [class*="survey" i], [class*="offer" i]'
@@ -1056,6 +1078,21 @@
         isProcessing = false;
         syncGUIProcessingState();
         updateHUD(customMessage, msgType, 2500);
+    }
+
+    function parkCaptchaTabAndReturnToWall() {
+        const shouldReturnToWall = isTrueAutoEnabled() && !isOfferWallPage();
+        triggerAbort(shouldReturnToWall ? 'Parked: CAPTCHA -> gain.gg/surveys' : 'Paused: CAPTCHA', 'error');
+        if (!shouldReturnToWall) return;
+        try {
+            stampAutoFarmHandoff(false);
+            const dashboardUrl = 'https://gain.gg/surveys';
+            if (typeof GM_openInTab === 'function') {
+                GM_openInTab(dashboardUrl, { active: true, insert: true, setParent: false });
+            } else {
+                window.open(dashboardUrl, '_blank');
+            }
+        } catch (e) {}
     }
 
     function abortableSleep(ms) {
@@ -1640,8 +1677,16 @@
             }
         }
 
-        // 3. Image/text CAPTCHA gates (detected even when the CAPTCHA renders its own text input)
+        // 3. Image/text CAPTCHA & drag-and-drop bot-screener gates
+        const botScreenerEl = queryAllInRoots(roots, '#questionText_infoBotScreener, #BotScreenerVal, #chkNoDisplayNumber, .bot-screener')
+            .find(el => isElementVisible(el));
+        if (botScreenerEl) {
+            return 'overlay';
+        }
         const bodyText = (document.body?.innerText || '').slice(0, 2500);
+        if (/\bdrag\s+each\s+number\s+into\s+the\s+boxes\s+below\s+to\s+match\b/i.test(bodyText)) {
+            return 'overlay';
+        }
         if (/\b(?:please\s+)?(?:enter|type)\s+(?:the\s+)?(?:text|characters?|letters?|numbers?|words?|code)\s+(?:that\s+)?(?:you\s+see|shown|displayed)?\s*(?:in\s+the\s+image|above|below)/i.test(bodyText)) {
             return 'overlay';
         }
@@ -1934,7 +1979,7 @@
                 // 1. Safety halt only on an active blocking CAPTCHA (ignores passive v3/invisible badges)
                 const preCaptcha = detectBlockingCaptcha(roots, initialBlocks.length > 0);
                 if (preCaptcha === 'overlay' || (preCaptcha === 'widget' && initialBlocks.length === 0)) {
-                    triggerAbort('Paused: CAPTCHA', 'error');
+                    parkCaptchaTabAndReturnToWall();
                     return;
                 }
 
@@ -2016,7 +2061,7 @@
                 let postBlocks = findAllQuestionBlocksOnPage(postRoots);
                 const postCaptcha = detectBlockingCaptcha(postRoots, postBlocks.length > 0);
                 if (postCaptcha) {
-                    triggerAbort('Paused: CAPTCHA', 'error');
+                    parkCaptchaTabAndReturnToWall();
                     return;
                 }
 
