@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.30
+// @version      1.1.31
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -2683,6 +2683,10 @@
         if (b.type === 'text_list') {
             return b.rows.every(r => (r.input.value || r.input.textContent || '').trim() !== '');
         }
+        if (b.type === 'open_list') {
+            const filled = b.inputs.filter(inp => (inp.value || '').trim() !== '').length;
+            return filled >= b.targetCount;
+        }
         if (b.type === 'matrix_grid') {
             if (!b.rows.every(r => r.choices.some(c => (c.input && c.input.checked) || isChoiceMarkedSelected(c, r.rowHeader || b.prompt)))) return false;
             return !(getFieldValidationErrorText(b.element) && (validationRetryCounts.get(b.element) || 0) < 1);
@@ -3201,6 +3205,31 @@
                     blocks.push({ type: 'number_grid', rows, prompt, isAnswered, element: unhandled[0] });
                 }
             }
+        }
+
+        // B0. Confirmit / Toluna Dynamic Open-Text Lists (.cf-question--open-list / .sqotlContainer)
+        const openListContainers = queryAllInRoots(roots, '.cf-question--open-list, .sqotlContainer')
+            .filter(c => isElementVisible(c) && !isHudElement(c));
+        for (const container of openListContainers) {
+            const otlInputs = Array.from(container.querySelectorAll('input.sqOTLInput, .oeContainer.sqlOTL input[type="text"]'));
+            if (otlInputs.length === 0) continue;
+            if (otlInputs.some(inp => handledInputs.has(inp))) continue;
+            otlInputs.forEach(inp => handledInputs.add(inp));
+            const targetCount = Math.min(3, otlInputs.length);
+            const filledCount = otlInputs.filter(inp => (inp.value || '').trim() !== '').length;
+            const qWrap = container.closest('.cf-question') || container;
+            const prompt = cleanOptionText(qWrap.querySelector('.cf-question__text, .cf-question__title')?.innerText) ||
+                extractPromptAboveGroup(otlInputs[0], allVisibleInputs) ||
+                findPromptAboveElement(otlInputs[0]) ||
+                'Please list your responses.';
+            blocks.push({
+                type: 'open_list',
+                inputs: otlInputs,
+                targetCount,
+                prompt,
+                isAnswered: filledCount >= targetCount,
+                element: otlInputs[0]
+            });
         }
 
         // B. Stacked Text Lists & Constant-Sum Text Inputs
@@ -4173,6 +4202,8 @@ RULES:
             await solveNumberGrid(block, fullPrompt);
         } else if (block.type === 'text_list') {
             await solveTextList(block, fullPrompt);
+        } else if (block.type === 'open_list') {
+            await solveOpenList(block, fullPrompt);
         } else if (block.type === 'choices') {
             const trapIdx = detectTrapDirective(fullPrompt, block.choices);
             if (trapIdx !== -1) {
@@ -4676,6 +4707,49 @@ RULES:
             }
             if (!abortRequested) {
                 updateHUD(`Filled ${block.rows.length} fields`, 'active', 2500);
+            }
+        } catch (err) {
+            if (abortRequested) return;
+            lastSolveHadError = true;
+            updateHUD(`Error: ${err.message}`, 'error', 4500);
+            console.error('[Gemini Typer]', err);
+        }
+    }
+
+    async function solveOpenList(block, prompt) {
+        try {
+            const existing = block.inputs.map(inp => (inp.value || '').trim()).filter(Boolean);
+            const needed = Math.max(0, block.targetCount - existing.length);
+            if (needed === 0) return;
+
+            updateHUD(`Listing ${needed} items...`, 'working');
+            const alreadyNote = existing.length > 0 ? `\nAlready entered (do NOT repeat): ${existing.join(', ')}` : '';
+            const userContent = `Survey Prompt:\n${prompt}${alreadyNote}\n\nProvide exactly ${needed} distinct single-item entries (one per box).`;
+            const systemInstruction = `${buildConsistencySystemPrefix()}You are an authentic adult survey participant filling out an open-ended list (one item per input box).
+RULES:
+1. Output exactly ${needed} distinct, realistic single items/names/brands/platforms matching the prompt (NOT comma-separated lists, NOT full sentences).
+2. Keep each entry concise (1-3 words max).
+3. Output strictly JSON: {"answers": ["item1", "item2"]}`;
+
+            const res = await callGeminiJSON(userContent, systemInstruction, Math.max(80, needed * 24 + 40));
+            if (abortRequested) return;
+            const answers = (Array.isArray(res.answers) ? res.answers : Object.values(res))
+                .map(a => String(a || '').replace(/[,;].*$/, '').trim())
+                .filter(Boolean);
+
+            for (let k = 0; k < needed; k++) {
+                if (abortRequested) return;
+                const nextInp = block.inputs.find(inp => !inp.disabled && !inp.readOnly && !(inp.value || '').trim());
+                if (!nextInp) break;
+                const val = answers[k] || answers[0] || 'YouTube';
+                clearTargetContent(nextInp);
+                await simulateTyping(nextInp, val, {});
+                recordSessionAnswer(`${prompt} (#${existing.length + k + 1})`, val);
+                if (abortRequested) return;
+                await abortableSleep(220);
+            }
+            if (!abortRequested) {
+                updateHUD(`Filled ${needed} list items`, 'active', 2500);
             }
         } catch (err) {
             if (abortRequested) return;
