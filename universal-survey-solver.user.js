@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.32
+// @version      1.1.33
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -4616,18 +4616,25 @@ RULES:
             val = Math.max(min, Math.min(max, val));
             if (step > 0) val = Math.round((val - min) / step) * step + min;
 
-            // Simulate pointer drag from current thumb position to target value before committing
+            // Simulate pointer drag from current thumb position along the full slider track
             rangeEl.scrollIntoView({ behavior: 'auto', block: 'center' });
-            const rect = rangeEl.getBoundingClientRect();
+            const handleRect = rangeEl.getBoundingClientRect();
+            const trackEl = isNativeRange
+                ? rangeEl
+                : (rangeEl.closest('.cf-slider__track, .cf-slider__track-area, [class*="slider__track" i], [class*="slider-track" i]') || rangeEl.parentElement || rangeEl);
+            const trackRect = trackEl.getBoundingClientRect();
             const span = (max - min) || 1;
             const startRatio = Math.max(0, Math.min(1, (currentVal - min) / span));
             const endRatio = Math.max(0, Math.min(1, (val - min) / span));
-            const clampX = (x) => Math.max(rect.left + 4, Math.min(rect.right - 4, x));
-            const startX = clampX(rect.left + rect.width * startRatio);
-            const endX = clampX(rect.left + rect.width * endRatio);
-            const midY = rect.top + rect.height / 2 + (Math.random() - 0.5) * Math.min(4, rect.height * 0.3);
+            const clampTrackX = (x) => Math.max(trackRect.left + 4, Math.min(trackRect.right - 4, x));
+            const startX = isNativeRange
+                ? clampTrackX(trackRect.left + trackRect.width * startRatio)
+                : (handleRect.left + handleRect.width / 2);
+            const endX = clampTrackX(trackRect.left + trackRect.width * endRatio);
+            const midY = (isNativeRange ? trackRect.top + trackRect.height / 2 : handleRect.top + handleRect.height / 2) +
+                (Math.random() - 0.5) * Math.min(4, handleRect.height * 0.3);
             const mkMouseOpts = (x, y) => ({
-                bubbles: true, cancelable: true, composed: true,
+                bubbles: true, cancelable: true, composed: true, buttons: 1,
                 clientX: x, clientY: y, pageX: x + window.scrollX, pageY: y + window.scrollY
             });
 
@@ -4654,6 +4661,7 @@ RULES:
                 }
                 const moveOpts = mkMouseOpts(px, py);
                 try { rangeEl.dispatchEvent(new PointerEvent('pointermove', moveOpts)); } catch (e) {}
+                try { document.dispatchEvent(new PointerEvent('pointermove', moveOpts)); } catch (e) {}
                 try { rangeEl.dispatchEvent(new MouseEvent('mousemove', moveOpts)); } catch (e) {}
                 try { document.dispatchEvent(new MouseEvent('mousemove', moveOpts)); } catch (e) {}
                 if (isNativeRange) {
@@ -4661,12 +4669,39 @@ RULES:
                 }
                 await abortableSleep(randomBetween(28, 62));
             }
-            const endOpts = mkMouseOpts(endX, midY);
+            const endOpts = { ...mkMouseOpts(endX, midY), buttons: 0 };
             try { rangeEl.dispatchEvent(new PointerEvent('pointerup', endOpts)); } catch (e) {}
+            try { document.dispatchEvent(new PointerEvent('pointerup', endOpts)); } catch (e) {}
             try { rangeEl.dispatchEvent(new MouseEvent('mouseup', endOpts)); } catch (e) {}
             try { document.dispatchEvent(new MouseEvent('mouseup', endOpts)); } catch (e) {}
             if (!isNativeRange) {
-                try { rangeEl.dispatchEvent(new MouseEvent('click', endOpts)); } catch (e) {}
+                // If drag didn't move the ARIA slider to val, click the track at target X and/or step with Arrow keys
+                const curAfterDrag = Number(rangeEl.getAttribute('aria-valuenow'));
+                if (isNaN(curAfterDrag) || Math.abs(curAfterDrag - val) > step * 0.5) {
+                    try {
+                        trackEl.dispatchEvent(new PointerEvent('pointerdown', mkMouseOpts(endX, midY)));
+                        trackEl.dispatchEvent(new MouseEvent('mousedown', mkMouseOpts(endX, midY)));
+                        trackEl.dispatchEvent(new PointerEvent('pointerup', endOpts));
+                        trackEl.dispatchEvent(new MouseEvent('mouseup', endOpts));
+                        trackEl.dispatchEvent(new MouseEvent('click', endOpts));
+                    } catch (e) {}
+                    await abortableSleep(60);
+                }
+                let curAria = Number(rangeEl.getAttribute('aria-valuenow'));
+                const maxKeySteps = Math.min(30, Math.ceil((max - min) / step) + 2);
+                for (let k = 0; k < maxKeySteps && !abortRequested; k++) {
+                    if (!isNaN(curAria) && Math.abs(curAria - val) <= step * 0.5) break;
+                    const goRight = isNaN(curAria) || curAria < val;
+                    const key = goRight ? 'ArrowRight' : 'ArrowLeft';
+                    const keyCode = goRight ? 39 : 37;
+                    try {
+                        rangeEl.focus({ preventScroll: true });
+                        rangeEl.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, keyCode, which: keyCode, bubbles: true, cancelable: true }));
+                        rangeEl.dispatchEvent(new KeyboardEvent('keyup', { key, code: key, keyCode, which: keyCode, bubbles: true, cancelable: true }));
+                    } catch (e) {}
+                    await abortableSleep(45);
+                    curAria = Number(rangeEl.getAttribute('aria-valuenow'));
+                }
             } else {
                 rangeEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
             }
