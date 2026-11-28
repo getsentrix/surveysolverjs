@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.34
+// @version      1.1.35
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -450,6 +450,14 @@
         window.addEventListener('gt:download-self-heal-logs', () => {
             if (!isOnWelcomePage()) return;
             exportSelfHealLogFile(false);
+        });
+        window.addEventListener('gt:clear-self-heal-logs', () => {
+            if (!isOnWelcomePage()) return;
+            try { gmSet(GM_KEY_SELF_HEAL_LOGS, '[]'); } catch (e) {}
+            try { gmSet(GM_KEY_SELF_HEAL_TRY, ''); } catch (e) {}
+            selfHealTriedSigs.clear();
+            publishStatus();
+            window.dispatchEvent(new CustomEvent('gt:self-heal-logs-cleared', { detail: { ok: true } }));
         });
 
         publishStatus();

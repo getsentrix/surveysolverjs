@@ -1834,7 +1834,10 @@
         </div>
         <span id="selfHealNote" class="optional-sub">Download prompts &amp; AI answers saved when Auto-Farm self-heals a stuck or unknown page.</span>
       </div>
-      <button type="button" id="downloadSelfHealLogsBtn" class="btn btn-sm btn-outline">Download Logs</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="downloadSelfHealLogsBtn" class="btn btn-sm btn-outline">Download Logs</button>
+        <button type="button" id="clearSelfHealLogsBtn" class="btn btn-sm btn-outline">Delete Logs</button>
+      </div>
     </div>
   </main>
 
@@ -1876,6 +1879,7 @@
       const selfHealCountBadge = document.getElementById('selfHealCountBadge');
       const selfHealNote = document.getElementById('selfHealNote');
       const downloadSelfHealLogsBtn = document.getElementById('downloadSelfHealLogsBtn');
+      const clearSelfHealLogsBtn = document.getElementById('clearSelfHealLogsBtn');
       let cachedSelfHealLogText = '';
       let cachedSelfHealLogCount = 0;
 
@@ -2300,6 +2304,21 @@
         } catch (err) {
           window.dispatchEvent(new CustomEvent('gt:download-self-heal-logs'));
         }
+      });
+
+      clearSelfHealLogsBtn.addEventListener('click', () => {
+        if (!bridgeConnected) {
+          selfHealNote.textContent = 'Userscript bridge not connected — install or enable the script first.';
+          return;
+        }
+        window.dispatchEvent(new CustomEvent('gt:clear-self-heal-logs'));
+        cachedSelfHealLogCount = 0;
+        cachedSelfHealLogText = '';
+        selfHealCountBadge.textContent = '0';
+        selfHealCountBadge.classList.add('is-neutral');
+        selfHealNote.textContent = 'All self-heal logs deleted.';
+        clearSelfHealLogsBtn.textContent = 'Deleted ✓';
+        setTimeout(() => { clearSelfHealLogsBtn.textContent = 'Delete Logs'; }, 1800);
       });
 
       window.addEventListener('gt:true-auto-saved', (e) => {
