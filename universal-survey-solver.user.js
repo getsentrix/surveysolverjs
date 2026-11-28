@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.31
+// @version      1.1.32
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -2805,13 +2805,17 @@
 
     function isChoiceMarkedSelected(c, promptText = '') {
         if (!c || !c.target) return false;
+        const hasExplicitFalseAria =
+            (c.ariaEl && (c.ariaEl.getAttribute('aria-checked') === 'false' || c.ariaEl.getAttribute('aria-selected') === 'false')) ||
+            c.target.getAttribute('aria-checked') === 'false' ||
+            c.target.getAttribute('aria-selected') === 'false';
         const nodes = [];
         for (const cand of [c.target, c.ariaEl, c.wrapper, c.label]) {
             if (cand && !nodes.includes(cand)) nodes.push(cand);
         }
         for (const el of nodes) {
             if (isMarkedSelectedNode(el)) return true;
-            if (promptText && selectedChoiceKeys.get(el) === buildSelectionStamp(promptText, c.text)) {
+            if (!hasExplicitFalseAria && promptText && selectedChoiceKeys.get(el) === buildSelectionStamp(promptText, c.text)) {
                 return true;
             }
             if (el.querySelector) {
@@ -6418,6 +6422,14 @@ RULES:
             const desc = `[${candidates.length}] <${tag.toLowerCase()}${type ? `:${type}` : ''}${role ? ` role=${role}` : ''}> text="${labelText}"${el.id ? ` id="${el.id}"` : ''}${cls ? ` class="${cls}"` : ''} rect=(${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)})`;
             candidates.push({ el, input, labelText, desc });
             if (candidates.length >= 40) break;
+        }
+        const nextBtn = findNextOrSubmitButton(roots);
+        if (nextBtn && !seen.has(nextBtn) && isElementVisible(nextBtn)) {
+            const r = nextBtn.getBoundingClientRect();
+            const labelText = (nextBtn.innerText || nextBtn.value || nextBtn.getAttribute('aria-label') || nextBtn.title || 'Next').replace(/\s+/g, ' ').trim().slice(0, 110);
+            const cls = (typeof nextBtn.className === 'string' ? nextBtn.className : '').trim().slice(0, 40);
+            const desc = `[${candidates.length}] <${nextBtn.tagName.toLowerCase()}> text="${labelText}"${nextBtn.id ? ` id="${nextBtn.id}"` : ''}${cls ? ` class="${cls}"` : ''} rect=(${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}x${Math.round(r.height)})`;
+            candidates.push({ el: nextBtn, input: nextBtn.tagName === 'INPUT' ? nextBtn : null, labelText, desc });
         }
         return candidates;
     }
