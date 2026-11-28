@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.36
+// @version      1.1.37
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -40,7 +40,7 @@
     // open https://aistudio.google.com/api-keys and create an API key. Paste it below (or save via Setup Page / Tampermonkey menu so updates keep your key).
     const API_KEY = '';
     // Replace with the URL where you upload index.html (e.g. your GitHub Pages URL):
-    const WELCOME_PAGE_URL = 'https://getsentrix.github.io/surveysolverjs/';
+    const WELCOME_PAGE_URL = 'https://getsentrix.github.io/universal-survey-solver/';
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
