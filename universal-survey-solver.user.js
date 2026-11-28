@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.39
+// @version      1.1.40
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -2976,6 +2976,18 @@
         return false;
     }
 
+    function isChatOrMessagingInput(el) {
+        if (!el) return false;
+        // gain.gg chat widget: contenteditable inside .css-b8gujm-inputWrapper with "Say Something..." placeholder
+        if (el.closest('.css-b8gujm-inputWrapper, [class*="inputWrapper"]')) {
+            const placeholder = el.closest('.css-b8gujm-inputWrapper, [class*="inputWrapper"]')?.querySelector('[class*="inputPlaceholder"], [class*="Placeholder"]');
+            if (placeholder && /say something|type a message|send a message|chat/i.test(placeholder.textContent)) return true;
+        }
+        // Generic chat / messaging contenteditable inputs
+        if (el.isContentEditable && el.closest('[class*="chat" i], [class*="messenger" i], [class*="messaging" i], [data-testid*="chat" i], [aria-label*="chat" i]')) return true;
+        return false;
+    }
+
     function isSearchOrFilterInput(inp) {
         if (!inp || inp.tagName === 'TEXTAREA' || inp.isContentEditable) return false;
         const typeAttr = (inp.getAttribute('type') || '').toLowerCase();
@@ -3274,7 +3286,7 @@
         const allTextInputs = queryAllInRoots(
             roots,
             'input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="number"]):not([type="range"]):not([type="file"]):not([type="image"]), textarea'
-        ).filter(inp => isElementVisible(inp) && !inp.disabled && !inp.readOnly && !handledInputs.has(inp) && !isSpecifyInput(inp) && !isSearchOrFilterInput(inp) && !isHoneypotOrHiddenInput(inp) && !isHudElement(inp) && inp.getAttribute('role') !== 'combobox');
+        ).filter(inp => isElementVisible(inp) && !inp.disabled && !inp.readOnly && !handledInputs.has(inp) && !isSpecifyInput(inp) && !isSearchOrFilterInput(inp) && !isHoneypotOrHiddenInput(inp) && !isHudElement(inp) && inp.getAttribute('role') !== 'combobox' && !isChatOrMessagingInput(inp));
 
         if (allTextInputs.length >= 2) {
             const textGroupMap = new Map();
@@ -3860,7 +3872,7 @@
         const remainingTextInputs = queryAllInRoots(
             roots,
             'textarea, input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="range"]):not([type="file"]):not([type="image"]), [contenteditable="true"]'
-        ).filter(t => isElementVisible(t) && !t.disabled && !t.readOnly && !handledInputs.has(t) && !isSpecifyInput(t) && !isSearchOrFilterInput(t) && !isNumericTotalOrReadOnlyInput(t) && !isHoneypotOrHiddenInput(t) && !isHudElement(t) && !t.closest('[data-test-id="ps_feedback_modal"], [data-testid="ps_feedback_modal"]') && t.getAttribute('role') !== 'combobox');
+        ).filter(t => isElementVisible(t) && !t.disabled && !t.readOnly && !handledInputs.has(t) && !isSpecifyInput(t) && !isSearchOrFilterInput(t) && !isNumericTotalOrReadOnlyInput(t) && !isHoneypotOrHiddenInput(t) && !isHudElement(t) && !t.closest('[data-test-id="ps_feedback_modal"], [data-testid="ps_feedback_modal"]') && t.getAttribute('role') !== 'combobox' && !isChatOrMessagingInput(t));
 
         for (const t of remainingTextInputs) {
             const prompt = extractPromptAboveGroup(t, allVisibleInputs) || findPromptAboveElement(t) || '';
