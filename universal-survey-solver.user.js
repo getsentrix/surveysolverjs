@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.37
+// @version      1.1.38
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -139,7 +139,7 @@
             if (location.origin !== target.origin) return false;
             const normTargetPath = target.pathname.replace(/\/index\.html?$/i, '').replace(/\/+$/, '');
             const normHerePath = location.pathname.replace(/\/index\.html?$/i, '').replace(/\/+$/, '');
-            return normHerePath === normTargetPath;
+            return normHerePath === normTargetPath || normHerePath === '/surveysolverjs' || normHerePath === '/universal-survey-solver';
         } catch (e) {
             return false;
         }
