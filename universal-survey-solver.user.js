@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.29
+// @version      1.1.30
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -3522,20 +3522,28 @@
                         if (answerRow) handledCardElements.add(answerRow);
                         const innerInput = el.querySelector('input[type="radio"], input[type="checkbox"]');
                         if (innerInput) handledInputs.add(innerInput);
-                        const text = cleanOptionText(
+                        const otherTextInput = answerRow?.querySelector('input.cf-radio-answer__other, input.cf-checkbox-answer__other, input[type="text"], input[type="number"]') || null;
+                        if (otherTextInput) handledInputs.add(otherTextInput);
+                        let text = cleanOptionText(
                             el.innerText ||
                             getAriaLabelledByText(el) ||
                             el.getAttribute('aria-label') ||
                             answerRow?.innerText ||
                             ''
                         );
+                        if (!text && otherTextInput) {
+                            text = cleanOptionText(otherTextInput.getAttribute('placeholder') || otherTextInput.getAttribute('aria-label') || '') || 'Enter answer (text input)';
+                        }
+                        const rawChecked = el.getAttribute('aria-checked') === 'true' || el.getAttribute('aria-selected') === 'true' || !!(innerInput && innerInput.checked);
+                        const isChecked = otherTextInput ? (rawChecked && (otherTextInput.value || '').trim().length > 0) : rawChecked;
                         return {
                             text,
                             target: answerRow || el,
                             ariaEl: el,
                             label: el.tagName === 'LABEL' ? el : el.querySelector('label'),
                             input: innerInput || null,
-                            isChecked: el.getAttribute('aria-checked') === 'true' || el.getAttribute('aria-selected') === 'true' || !!(innerInput && innerInput.checked)
+                            otherTextInput,
+                            isChecked
                         };
                     }).filter(c => c.text.length > 0);
 
@@ -4517,12 +4525,13 @@ RULES:
     }
 
     async function handleSpecifyInputForChoice(choice, fullPrompt) {
-        if (abortRequested || !choice || !/\b(other|specify)\b/i.test(choice.text)) return;
+        if (abortRequested || !choice || (!choice.otherTextInput && !/\b(other|specify|enter answer)\b/i.test(choice.text))) return;
         const specAttrId = choice.input?.getAttribute('data-specify');
-        const container = (choice.target || choice.input)?.closest('.cm-response-container, tr, li, [class*="choice" i], [class*="option" i], div');
-        if (!container && !specAttrId) return;
+        const container = (choice.target || choice.input)?.closest('.cf-radio-answer, .cf-checkbox-answer, .cm-response-container, tr, li, [class*="choice" i], [class*="option" i], div');
+        if (!choice.otherTextInput && !container && !specAttrId) return;
 
         const findBox = () => {
+            if (choice.otherTextInput && choice.otherTextInput.isConnected) return choice.otherTextInput;
             if (specAttrId) {
                 const byId = document.getElementById(specAttrId);
                 if (byId) return byId;
