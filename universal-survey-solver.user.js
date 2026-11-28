@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.38
+// @version      1.1.39
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -724,9 +724,9 @@
         updateHUD(msg, 'info');
     }
 
-    function stampAutoFarmHandoff(fromOfferWall = false) {
+    function stampAutoFarmHandoff(fromOfferWall = false, force = false) {
         try {
-            if (!autoFarmActive || abortRequested || isOnWelcomePage()) return;
+            if ((!force && (!autoFarmActive || abortRequested)) || isOnWelcomePage()) return;
             gmSet(GM_KEY_AF_HANDOFF, JSON.stringify({
                 ts: Date.now(),
                 fromOrigin: location.origin,
@@ -1093,7 +1093,7 @@
         triggerAbort(shouldReturnToWall ? 'Parked: CAPTCHA -> gain.gg/surveys' : 'Paused: CAPTCHA', 'error');
         if (!shouldReturnToWall) return;
         try {
-            stampAutoFarmHandoff(false);
+            stampAutoFarmHandoff(false, true);
             const dashboardUrl = 'https://gain.gg/surveys';
             if (typeof GM_openInTab === 'function') {
                 GM_openInTab(dashboardUrl, { active: true, insert: true, setParent: false });
