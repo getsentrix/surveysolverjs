@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.25
+// @version      1.1.26
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -44,7 +44,7 @@
     const GREASYFORK_SCRIPT_URL = 'https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini';
     const GREASYFORK_META_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).meta.js';
     const GREASYFORK_USERJS_URL = 'https://update.greasyfork.org/scripts/607189/Universal%20Survey%20Solver%20(Gemini).user.js';
-    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.25';
+    const SCRIPT_VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) ? String(GM_info.script.version) : '1.1.26';
     const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Strictly <= 1 check per 24h per Greasy Fork rules
 
     const MODEL_NAME = 'gemma-4-26b-a4b-it';
@@ -64,6 +64,7 @@
     const GM_KEY_RECENT_SURVEYS = '__gt_recent_surveys_v1';
     const GM_KEY_SESSION_MEM = '__gt_session_memory_v1';
     const GM_KEY_ACTIVE_LOCK = '__gt_active_tab_lock_v1';
+    const GM_KEY_VISIBLE_TAB = '__gt_visible_chrome_tab_v1';
     const GM_KEY_SELF_HEAL_LOGS = '__gt_self_heal_logs_v1';
     const GM_KEY_SELF_HEAL_TRY = '__gt_self_heal_try_v1';
     const AF_STATE_TTL_MS = 25 * 60 * 1000;
@@ -645,8 +646,26 @@
         } catch (e) {}
     }
 
+    function stampVisibleChromeTab() {
+        if (document.hidden || isSubFrame) return;
+        try {
+            gmSet(GM_KEY_VISIBLE_TAB, JSON.stringify({ tabId: TAB_ID, ts: Date.now() }));
+        } catch (e) {}
+    }
+
+    function isOtherChromeTabForeground() {
+        try {
+            const raw = gmGet(GM_KEY_VISIBLE_TAB, '');
+            if (!raw) return false;
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            return Boolean(parsed && parsed.tabId && parsed.tabId !== TAB_ID);
+        } catch (e) {
+            return false;
+        }
+    }
+
     function heartbeatActiveTabLock(kind = 'survey') {
-        if (document.hidden) return;
+        if (isOtherChromeTabForeground()) return;
         const lock = readActiveTabLock();
         if (!lock || lock.releasedAt || lock.tabId === TAB_ID || (Date.now() - (lock.ts || 0)) >= ACTIVE_LOCK_TTL_MS) {
             claimActiveTabLock(kind);
@@ -863,8 +882,8 @@
             return false;
         }
 
-        // Never resume in a background/hidden tab
-        if (document.hidden) {
+        // Never resume in a tab that was backgrounded by another Chrome tab
+        if (document.hidden && (isOtherChromeTabForeground() || isOtherTabLockActive())) {
             return false;
         }
 
@@ -925,14 +944,25 @@
             releaseActiveTabLock(false);
         }
     });
+    if (!isSubFrame && !document.hidden) stampVisibleChromeTab();
+    window.addEventListener('focus', () => {
+        stampVisibleChromeTab();
+    });
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden && autoFarmActive && !abortRequested) {
+        if (!document.hidden) {
+            stampVisibleChromeTab();
+            return;
+        }
+        if (autoFarmActive && !abortRequested) {
             const onWall = isOfferWallPage();
             stampAutoFarmHandoff(onWall);
-            if (!onWall) {
-                releaseActiveTabLock(false);
-                pauseAsOtherTab('Paused: tab in background');
-            }
+            // Only pause when another Chrome tab actually took focus (switching to Discord keeps this tab running)
+            setTimeout(() => {
+                if (document.hidden && autoFarmActive && !abortRequested && !isOfferWallPage() && isOtherChromeTabForeground()) {
+                    releaseActiveTabLock(false);
+                    pauseAsOtherTab('Paused: tab in background');
+                }
+            }, 250);
         }
     });
 
@@ -1793,7 +1823,7 @@
                     pauseAsOtherTab();
                     return;
                 }
-                if (document.hidden) {
+                if (document.hidden && isOtherChromeTabForeground()) {
                     if (onOfferWallNow && isTrueAutoEnabled()) {
                         updateHUD('Standby: survey tab open', 'info');
                         await abortableSleep(1500);
@@ -6243,7 +6273,7 @@ RULES:
     }
 
     async function attemptLastResortAiNavigation(triggerReason, roots, blocks, pageSig) {
-        if (abortRequested || !autoFarmActive || document.hidden || isOfferWallPage(roots)) return false;
+        if (abortRequested || !autoFarmActive || (document.hidden && isOtherChromeTabForeground()) || isOfferWallPage(roots)) return false;
         if (detectEndOfSurveyPage(roots) || detectBlockingCaptcha(roots, blocks.length > 0)) return false;
         if (!pageSig || selfHealTriedSigs.has(pageSig)) return false;
 
