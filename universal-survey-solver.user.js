@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.35
+// @version      1.1.36
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -4982,12 +4982,16 @@ Output strictly a JSON object formatted as: {"counts": [count0, count1, count2]}
         const typeAttr = (input.getAttribute('type') || 'text').toLowerCase();
         const inputMode = (input.getAttribute('inputmode') || '').toLowerCase();
         const maxLen = parseInt(input.getAttribute('maxlength'), 10) || 0;
+        const sizeAttr = parseInt(input.getAttribute('size'), 10) || 0;
+        const isNumberQuestionContainer = Boolean(input.closest('.question.number, [class*="question-number" i], [data-type="number" i]'));
 
         if (typeAttr === 'date' || /\b(?:dd\/mm\/yyyy|mm\/dd\/yyyy)\b/i.test(fullContext)) return 'DATE_INPUT';
         if (typeAttr === 'email') return 'EMAIL_INPUT';
 
-        if (typeAttr === 'number' || inputMode === 'numeric' ||
-            /\b(zip\s*code|postal|how old|your age|birth\s*year|enter a number|enter number|phone\s*number)\b/i.test(fullContext)) {
+        if (typeAttr === 'number' || inputMode === 'numeric' || isNumberQuestionContainer ||
+            /\d+\s*[+\-*×÷/]\s*\d+\s*=|\b(?:mathematical\s+equation|solve\s+(?:the\s+|this\s+)?(?:math|equation)|what\s+is\s+\d+\s*(?:plus|minus|times|divided\s+by)\s*\d+)\b/i.test(fullContext) ||
+            /\b(zip\s*code|postal|how old|your age|birth\s*year|enter a number|enter number|phone\s*number|how many|how much)\b/i.test(fullContext) ||
+            (sizeAttr > 0 && sizeAttr <= 5 && /\b(number|age|year|count|total|score|rating|sum|equation|math|\d+)\b/i.test(fullContext))) {
             return 'NUMERIC_SINGLE';
         }
 
@@ -5299,7 +5303,10 @@ Output strictly a JSON object formatted as: {"counts": [count0, count1, count2]}
                 if (constraints.minVal !== null || constraints.maxVal !== null) {
                     contextualPrompt += `\n[ALLOWED RANGE: ${constraints.minVal ?? 'any'} to ${constraints.maxVal ?? 'any'}]`;
                 }
-                systemInstruction = `${personaPrefix}Output ONLY a single realistic whole integer matching the question and your persona (e.g. age, 5-digit ZIP, count, or dollar amount). No letters, no punctuation, no words.`;
+                if (constraints.inputSize > 0 && constraints.inputSize <= 6) {
+                    contextualPrompt += `\n[INPUT BOX SIZE: ${constraints.inputSize} chars wide — output a single integer fitting within ${constraints.inputSize} digits]`;
+                }
+                systemInstruction = `${personaPrefix}Output ONLY a single realistic whole integer matching the question and your persona (e.g. math answer, age, 5-digit ZIP, count, or dollar amount). No letters, no punctuation, no words.`;
                 maxTokens = 20;
                 temp = 0.1;
             } else if (mode === 'NUMERIC_SCALE') {
@@ -5327,6 +5334,17 @@ RULES:
                 }
                 if (constraints.maxWords > 0) {
                     contextualPrompt += `\n[MAXIMUM WORDS: Do not exceed ${constraints.maxWords} words.]`;
+                }
+                if (!constraints.maxChars && !constraints.maxWords) {
+                    if (constraints.inputSize > 0 && constraints.inputSize <= 12) {
+                        contextualPrompt += `\n[INPUT BOX SIZE: narrow single-line input (size=${constraints.inputSize}), keep answer ultra-short (${constraints.inputSize} chars or fewer)]`;
+                    } else if (constraints.isTextarea) {
+                        contextualPrompt += `\n[INPUT SHAPE: multi-line textarea (${constraints.textareaRows || 'auto'} rows, ~${constraints.inputWidthPx || 400}px wide) — 1-2 short natural sentences]`;
+                    } else if (constraints.inputWidthPx > 0 && constraints.inputWidthPx < 140) {
+                        contextualPrompt += `\n[INPUT SHAPE: narrow single-line input (~${constraints.inputWidthPx}px wide) — keep answer to 1-3 words max]`;
+                    } else {
+                        contextualPrompt += `\n[INPUT SHAPE: single-line text input — keep answer concise (1 short sentence or phrase)]`;
+                    }
                 }
                 const styleVariants = [
                     'Write casually like texting or filling a quick form on a phone — use contractions, concrete specifics, and slightly loose punctuation.',
@@ -5548,8 +5566,13 @@ RULES:
         const maxVal = rawMaxVal !== null && rawMaxVal !== '' && !isNaN(Number(rawMaxVal)) ? Number(rawMaxVal) : null;
         const isFiveDigitZip = /\b(5-digit|five-digit|zip\s*code|postal\s*code)\b/i.test(scanText);
         const ddMmYyyy = /\bdd\/mm\/yyyy\b/i.test(scanText);
+        const isTextarea = target.tagName === 'TEXTAREA';
+        const inputSize = !isTextarea ? (parseInt(target.getAttribute('size'), 10) || 0) : 0;
+        const textareaRows = isTextarea ? (parseInt(target.getAttribute('rows'), 10) || 0) : 0;
+        let inputWidthPx = 0;
+        try { inputWidthPx = Math.round(target.getBoundingClientRect().width || 0); } catch (e) {}
 
-        return { minChars, maxChars, minWords, maxWords, minVal, maxVal, isFiveDigitZip, ddMmYyyy };
+        return { minChars, maxChars, minWords, maxWords, minVal, maxVal, isFiveDigitZip, ddMmYyyy, isTextarea, inputSize, textareaRows, inputWidthPx };
     }
 
     function calculateTypingDelay(char, prevChar) {
