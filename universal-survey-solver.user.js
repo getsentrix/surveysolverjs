@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.28
+// @version      1.1.29
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -2219,6 +2219,23 @@
                             triggerAbort('Auto-Farm finished', 'active');
                             return;
                         }
+                        // Chat-style single-input flows (e.g., Quest Mindshare) submit on Enter when no Next button exists
+                        const enterTarget = postBlocks.length === 1 && postBlocks[0]?.type === 'text' && postBlocks[0]?.input?.tagName === 'INPUT' && isElementVisible(postBlocks[0].input)
+                            ? postBlocks[0].input
+                            : null;
+                        if (enterTarget && (enterTarget.value || '').trim().length > 0) {
+                            const preEnterSig = getPageSignature(postRoots, postBlocks);
+                            try {
+                                enterTarget.focus({ preventScroll: true });
+                                const evInit = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+                                enterTarget.dispatchEvent(new KeyboardEvent('keydown', evInit));
+                                enterTarget.dispatchEvent(new KeyboardEvent('keypress', evInit));
+                                enterTarget.dispatchEvent(new KeyboardEvent('keyup', evInit));
+                            } catch (e) {}
+                            const transitioned = await waitForPageTransition(preEnterSig, 1800, location.href);
+                            if (abortRequested || !autoFarmActive) return;
+                            if (transitioned) continue;
+                        }
                         const healSig = getPageSignature(postRoots, postBlocks);
                         const rescued = await attemptLastResortAiNavigation('no_next_button', postRoots, postBlocks, healSig);
                         if (abortRequested || !autoFarmActive) return;
@@ -2354,7 +2371,7 @@
         );
 
         const knownForwardIds = /^(next\d*|continue|submit|btn_continue|NextButton|cm-NextButton|movenextbtn|movesubmitbtn|sg_NextButton|sg_SubmitButton|sGizmoNextButton|sGizmoSubmitButton|submitQuestion|submitButton|submitBtn|submit_btn|btnSubmit|next_button|forwardbutton|btnNext|nextBtn|next-button|continue-button|submit-button|continue_btn|next_btn|ps-qualification-next-button|ps-start-survey-btn|ps-common-actions-button|confirm-selection|submit-text)$/i;
-        const nextWordRx = /^(next|continue|submit|proceed|forward|participate|take\s*survey|go\s*to\s*survey|launch\s*survey|enter\s*survey|next\s*page|next\s*question|save\s*(?:&|and)\s*continue|start|start\s*survey|begin|get\s*started|let'?s\s*go|agree\s*(?:&|and)\s*continue|accept\s*(?:&|and)\s*continue|i\s*agree|i\s*accept|finish|complete|done|confirm|confirm\s*(?:my\s*)?selections?|send)$/i;
+        const nextWordRx = /^(next|continue|submit|proceed|forward|participate|take\s*(?:the\s*)?survey|go\s*to\s*(?:the\s*)?survey|launch\s*(?:the\s*)?survey|enter\s*(?:the\s*)?survey|next\s*page|next\s*question|save\s*(?:&|and)\s*continue|start|start\s*(?:the\s*)?survey|begin|get\s*started|let'?s\s*go|agree\s*(?:&|and)\s*continue|accept\s*(?:&|and)\s*continue|i\s*agree|i\s*accept|finish|complete|done|confirm|confirm\s*(?:my\s*)?selections?|send)$/i;
         const forwardArrowOnlyRx = /^(?:[>>»›→➜➔▶▸►➡❯❱⇒⇨⟶⟹]+|->+)$/;
         const backArrowOnlyRx = /^(?:[<<«‹←◀◂◄⬅❮❰⇐⇦↩↶⟵⟸]+|<-+)$/;
         const rejectTextRx = /\b(back|goback|go\s*back|step\s*back|previous|prev|return|prior|earlier|undo|cancel|exit|logout|log\s*out|close|disagree|decline|no\s*thanks|skip\s*survey|skip\s*question|can'?t\s*answer|quit|reset|clear|privacy|terms|cookie|help|support|contact\s*(?:form\s*)?owner|edit\s*(?:this\s*)?form|arrow_back(?:_ios(?:_new)?)?|navigate_before|chevron_left|keyboard_arrow_left|arrow_left|west)\b/i;
@@ -6405,7 +6422,14 @@ RULES:
             const inp = targetCand.input || targetCand.el;
             await executeTextTypingWithValue(inp, payload.text.trim());
             actionsTaken.push({ index: indices[0], type: 'type', desc: targetCand.desc, text: payload.text.trim() });
-            if (indices.length > 1) {
+            if (indices.length === 1 && inp?.tagName === 'INPUT') {
+                try {
+                    const evInit = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+                    inp.dispatchEvent(new KeyboardEvent('keydown', evInit));
+                    inp.dispatchEvent(new KeyboardEvent('keypress', evInit));
+                    inp.dispatchEvent(new KeyboardEvent('keyup', evInit));
+                } catch (e) {}
+            } else if (indices.length > 1) {
                 for (const idx of indices.slice(1)) {
                     const nextCand = candidates[idx];
                     if (nextCand) {
