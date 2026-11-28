@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal Survey Solver (Gemini)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.33
+// @version      1.1.34
 // @license      MIT
 // @description  Enterprise survey solver with Auto-Farm mode, matrix batching, and custom widget support, powered by Google Gemini API
 // @homepageURL  https://greasyfork.org/en/scripts/607189-universal-survey-solver-gemini
@@ -2169,6 +2169,32 @@
                     continue;
                 }
                 emptyIdleTicks = 0;
+
+                // Advance incomplete Confirmit carousels (.cf-carousel) via next arrow / paging dot before clicking page Next
+                if (stillUnanswered.length === 0) {
+                    const carouselStepTarget = postRoots
+                        .flatMap(r => Array.from(r.querySelectorAll('.cf-carousel')))
+                        .filter(car => isElementVisible(car) && !isHudElement(car))
+                        .map(car => {
+                            const incompleteDot = car.querySelector('.cf-carousel__paging-item:not(.cf-carousel__paging-item--complete)');
+                            if (!incompleteDot) return null;
+                            const nextArrow = car.querySelector('.cf-carousel__navigation-button--next[role="button"]:not([aria-hidden="true"]):not([aria-disabled="true"]):not(.cf-carousel__navigation-button--disabled)');
+                            const currentDot = car.querySelector('.cf-carousel__paging-item--current');
+                            const nextDot = currentDot?.nextElementSibling;
+                            if (nextArrow && isElementVisible(nextArrow) && nextDot && !nextDot.classList.contains('cf-carousel__paging-item--complete')) {
+                                return nextArrow;
+                            }
+                            return isElementVisible(incompleteDot) ? incompleteDot : (nextArrow && isElementVisible(nextArrow) ? nextArrow : null);
+                        })
+                        .find(Boolean);
+                    if (carouselStepTarget) {
+                        updateHUD('Carousel: next item...', 'farming');
+                        await triggerNativeClick(carouselStepTarget, null, null);
+                        await abortableSleep(480);
+                        if (abortRequested || !autoFarmActive) return;
+                        continue;
+                    }
+                }
 
                 if (!nextBtn) {
                     if (detectEndOfSurveyPage(postRoots)) {
